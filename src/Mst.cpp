@@ -240,9 +240,8 @@ int Mst::loadMST(const TCHAR *filename)
 			break;
 		}
 
-		// TODO: Convert from Shift-JIS to UTF-8.
 		size_t msgNameLen = strnlen(pMsgName, reinterpret_cast<const char*>(pDiffTblEnd) - pMsgName);
-		m_name = string(pMsgName, msgNameLen);
+		m_name = cpN_to_utf8(932, pMsgName, static_cast<int>(msgNameLen));
 	} while (0);
 
 	// Temporary string for text.
