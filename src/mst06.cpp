@@ -256,4 +256,6 @@ int main(int argc, char *argv[])
 		printf("* Message %zu: %s -> %s\n", msgNum, msgName.c_str(), msgText.c_str());
 		vStrTbl.push_back(std::make_pair(msgName, msgText));
 	}
+
+	return 0;
 }
