@@ -107,6 +107,7 @@ In Sonic '06 files, this usually looks like "ABABABABABABAB", though sometimes
 there's strings of "AAAAAAAA". Here's how to decode it.
 
 Initial file position: 0x20 (32; size of header)
+
 For each non-zero byte in the offset table:
 * Convert the byte to binary: `'A' -> 0x41 -> 0100 0001`
 * High two bits indicates data length:
