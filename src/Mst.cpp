@@ -268,9 +268,8 @@ int Mst::loadMST(const TCHAR *filename)
 		}
 
 		// Get the message name.
-		// TODO: Convert from Shift-JIS to UTF-8.
 		size_t msgNameLen = strnlen(pMsgName, reinterpret_cast<const char*>(pDiffTblEnd) - pMsgName);
-		string msgName(pMsgName, msgNameLen);
+		string msgName = cpN_to_utf8(932, pMsgName, static_cast<int>(msgNameLen));
 
 		msgText.clear();
 		if (vMsgOffsets[i+1] >= vMsgOffsets[0]) {

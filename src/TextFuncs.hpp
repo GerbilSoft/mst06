@@ -28,12 +28,38 @@
 
 /** Text conversion functions **/
 
+#ifndef CP_ACP
+# define CP_ACP 0
+#endif
+#ifndef CP_LATIN1
+# define CP_LATIN1 28591
+#endif
+#ifndef CP_UTF8
+# define CP_UTF8 65001
+#endif
+
 // Text conversion flags.
 typedef enum {
 	// Enable cp1252 fallback if the text fails to
 	// decode using the specified code page.
 	TEXTCONV_FLAG_CP1252_FALLBACK		= (1 << 0),
 } TextConv_Flags_e;
+
+/**
+ * Convert 8-bit text to UTF-8.
+ * WARNING: This function does NOT support NULL-terminated strings!
+ *
+ * The specified code page number will be used.
+ *
+ * @param cp	[in] Code page number.
+ * @param str	[in] 8-bit text.
+ * @param len	[in] Length of str, in bytes. (-1 for NULL-terminated string)
+ * @param flags	[in] Flags. (See TextConv_Flags_e.)
+ * @return UTF-8 string.
+ */
+std::string cpN_to_utf8(unsigned int cp, const char *str, int len, unsigned int flags = 0);
+
+/* UTF-8 to UTF-16 and vice-versa */
 
 /**
  * Convert UTF-16LE text to UTF-8.
@@ -87,7 +113,7 @@ static inline std::string utf16_to_utf8(const std::u16string &wcs)
 #endif
 }
 
-/** UTF-16 to UTF-16 conversion functions **/
+/* UTF-16 to UTF-16 conversion functions */
 
 /**
  * Byteswap and return UTF-16 text.

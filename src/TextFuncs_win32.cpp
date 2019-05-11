@@ -139,7 +139,7 @@ static char *W32U_UTF16_to_mbs(const char16_t *wcs, int cchWcs,
  * @param flags	[in] Flags. (See TextConv_Flags_e.)
  * @return UTF-8 string.
  */
-static string cpN_to_utf8(unsigned int cp, const char *str, int len, unsigned int flags)
+string cpN_to_utf8(unsigned int cp, const char *str, int len, unsigned int flags)
 {
 	DWORD dwFlags = 0;
 	if (flags & TEXTCONV_FLAG_CP1252_FALLBACK) {

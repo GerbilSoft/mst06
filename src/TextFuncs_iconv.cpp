@@ -18,6 +18,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.   *
  ***************************************************************************/
 
+#include "config.mst06.h"
 #include "TextFuncs.hpp"
 
 // C++ includes.
@@ -105,6 +106,97 @@ static char *rp_iconv(const char *src, int len,
 	// The string was not converted successfully.
 	free(outbuf);
 	return nullptr;
+}
+
+/** Generic code page functions. **/
+
+/**
+ * Convert a code page to an encoding name.
+ * @param enc_name	[out] Buffer for encoding name.
+ * @param len		[in] Length of enc_name.
+ * @param cp		[in] Code page number.
+ * @param flags		[in] Flags. (See TextConv_Flags_e.)
+ */
+static inline void codePageToEncName(char *enc_name, size_t len, unsigned int cp, unsigned int flags)
+{
+	// If TEXTCONV_FLAG_CP1252_FALLBACK is set, this is the
+	// primary code page, so we should fail on error.
+	// Otherwise, this is the fallback codepage.
+	const char *const ignore = (flags & TEXTCONV_FLAG_CP1252_FALLBACK) ? "" : "//IGNORE";
+
+	// Check for "special" code pages.
+	switch (cp) {
+		case CP_ACP:
+		case CP_LATIN1:
+			// NOTE: Handling "ANSI" as Latin-1 for now.
+			snprintf(enc_name, len, "LATIN1%s", ignore);
+			break;
+		case CP_UTF8:
+			snprintf(enc_name, len, "UTF-8%s", ignore);
+			break;
+		default:
+			snprintf(enc_name, len, "CP%u%s", cp, ignore);
+			break;
+	}
+}
+
+/**
+ * Convert 8-bit text to UTF-8.
+ * WARNING: This function does NOT support NULL-terminated strings!
+ *
+ * The specified code page number will be used.
+ *
+ * @param cp	[in] Code page number.
+ * @param str	[in] 8-bit text.
+ * @param len	[in] Length of str, in bytes. (-1 for NULL-terminated string)
+ * @param flags	[in] Flags. (See TextConv_Flags_e.)
+ * @return UTF-8 string.
+ */
+string cpN_to_utf8(unsigned int cp, const char *str, int len, unsigned int flags)
+{
+	// Get the encoding name for the primary code page.
+	char cp_name[20];
+	codePageToEncName(cp_name, sizeof(cp_name), cp, flags);
+
+	// Attempt to convert the text to UTF-8.
+	// NOTE: "//IGNORE" sometimes doesn't work, so we won't
+	// check for TEXTCONV_FLAG_CP1252_FALLBACK here.
+	string ret;
+	char *mbs = reinterpret_cast<char*>(rp_iconv((char*)str, len*sizeof(*str), cp_name, "UTF-8"));
+	if (!mbs /*&& (flags & TEXTCONV_FLAG_CP1252_FALLBACK)*/) {
+		// Try cp1252 fallback.
+		if (cp != 1252) {
+			mbs = reinterpret_cast<char*>(rp_iconv((char*)str, len*sizeof(*str), "CP1252//IGNORE", "UTF-8"));
+		}
+		if (!mbs) {
+			// Try Latin-1 fallback.
+			if (cp != CP_LATIN1) {
+				mbs = reinterpret_cast<char*>(rp_iconv((char*)str, len*sizeof(*str), "LATIN1//IGNORE", "UTF-8"));
+			}
+		}
+	}
+
+	if (mbs) {
+		ret.assign(mbs);
+		free(mbs);
+
+#ifdef HAVE_ICONV_LIBICONV
+		if (cp == 932) {
+			// libiconv's cp932 maps Shift-JIS 8160 to U+301C. This is expected
+			// behavior for Shift-JIS, but cp932 should map it to U+FF5E.
+			for (auto p = ret.begin(); p != ret.end(); ++p) {
+				if ((uint8_t)p[0] == 0xE3 && (uint8_t)p[1] == 0x80 && (uint8_t)p[2] == 0x9C) {
+					// Found a wave dash.
+					p[0] = (uint8_t)0xEF;
+					p[1] = (uint8_t)0xBD;
+					p[2] = (uint8_t)0x9E;
+					p += 2;
+				}
+			}
+		}
+#endif /* HAVE_ICONV_LIBICONV */
+	}
+	return ret;
 }
 
 /** Unicode to Unicode conversion functions. **/
