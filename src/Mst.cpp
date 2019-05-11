@@ -38,6 +38,9 @@ using std::vector;
 #include "mst_structs.h"
 #include "byteswap.h"
 
+// Text encoding functions.
+#include "TextFuncs.hpp"
+
 /**
  * Load an MST string table.
  * @param filename MST string table filename.
@@ -251,13 +254,10 @@ int Mst::loadMST(const TCHAR *filename)
 			// Seen in msg_town_mission_shadow.j.mst, message 126:
 			// "rgba(255,153,0),color,rgba(255,153,0),color,rgba(255,153,0),color,rgba(255,153,0),color"
 			// TODO: Does this need to be stored like this in order to function properly?
-			printf("*** WARNING: MsgName with no MsgText...\n");
 			i--;
 		} else {
-			// Get the message text.
-			// TODO: Convert from UTF-16BE to UTF-8.
-			// For now, simply discarding the high byte.
-			msgText.reserve(1024);
+			// Find the end of the message text.
+			size_t len = 0;
 			for (; pMsgText < reinterpret_cast<const char16_t*>(pDiffTblEnd); pMsgText++) {
 				if (*pMsgText == 0) {
 					// Found the NULL terminator.
@@ -286,12 +286,9 @@ void Mst::dump(void) const
 	size_t idx = 0;
 	for (auto iter = m_vStrTbl.cbegin(); iter != m_vStrTbl.cend(); ++iter, ++idx) {
 		printf("* Message %zu: %s -> ", idx, iter->first.c_str());
-		// TODO: Convert from UTF-16 to UTF-8.
-		// For now, truncating to 8-bit.
-		const u16string &wcs = iter->second;
-		for (auto siter = wcs.cbegin(); siter != wcs.cend(); ++siter) {
-			putchar((char)*siter);
-		}
-		putchar('\n');
+
+		// Convert the message text from UTF-16 to UTF-8.
+		// TODO: Escape newlines and form feeds?
+		printf("%s\n", utf16_to_utf8(iter->second).c_str());
 	}
 }
