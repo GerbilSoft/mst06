@@ -30,7 +30,7 @@
 class Mst
 {
 	public:
-		Mst() { }
+		Mst();
 		~Mst() { }
 
 	public:
@@ -59,6 +59,15 @@ class Mst
 		/** Accessor functions. **/
 
 		/**
+		 * Is the file big-endian?
+		 * @return True if the file is big-endian; false if not.
+		 */
+		bool isBigEndian(void) const
+		{
+			return m_isBigEndian;
+		}
+
+		/**
 		 * Get the string table name.
 		 * @return String table name.
 		 */
@@ -70,6 +79,10 @@ class Mst
 		// TODO: More accessors.
 
 	private:
+		// MST information.
+		uint8_t m_version;	// MST version number.
+		bool m_isBigEndian;	// True if this file is big-endian.
+
 		// String table name. (UTF-8)
 		std::string m_name;
 		

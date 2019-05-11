@@ -41,6 +41,11 @@ using std::vector;
 // Text encoding functions.
 #include "TextFuncs.hpp"
 
+Mst::Mst()
+	: m_version(1)
+	, m_isBigEndian(true)
+{ }
+
 /**
  * Load an MST string table.
  * @param filename MST string table filename.
@@ -78,11 +83,25 @@ int Mst::loadMST(const TCHAR *filename)
 		return -EIO;
 	}
 
-	// NOTE: Assuming big-endian for now.
-	// TODO: Handle little-endian MST files.
-	mst.file_size		= be32_to_cpu(mst.file_size);
-	mst.offset_tbl_offset	= be32_to_cpu(mst.offset_tbl_offset);
-	mst.offset_tbl_length	= be32_to_cpu(mst.offset_tbl_length);
+	// Check version number and endianness.
+	if (mst.version != '1' || (mst.endianness != 'B' && mst.endianness != 'L')) {
+		// Unsupported version and/or invalid endianness.
+		// TODO: Store more comprehensive error information.
+		fclose(f_mst);
+		return -EIO;
+	}
+	m_version = 1;
+	m_isBigEndian = (mst.endianness == 'B');
+
+	if (m_isBigEndian) {
+		mst.file_size		= be32_to_cpu(mst.file_size);
+		mst.offset_tbl_offset	= be32_to_cpu(mst.offset_tbl_offset);
+		mst.offset_tbl_length	= be32_to_cpu(mst.offset_tbl_length);
+	} else {
+		mst.file_size		= le32_to_cpu(mst.file_size);
+		mst.offset_tbl_offset	= le32_to_cpu(mst.offset_tbl_offset);
+		mst.offset_tbl_length	= le32_to_cpu(mst.offset_tbl_length);
+	}
 
 	// Verify file size.
 	if (mst.file_size < sizeof(MST_Header) + sizeof(WTXT_Header) + sizeof(WTXT_MsgPointer)) {
@@ -197,7 +216,13 @@ int Mst::loadMST(const TCHAR *filename)
 		}
 
 		// Read the 32-bit value at this offset.
-		vMsgOffsets.push_back(be32_to_cpu(*(uint32_t*)pDiffTbl));
+		uint32_t real_offset;
+		if (m_isBigEndian) {
+			real_offset = be32_to_cpu(*(uint32_t*)pDiffTbl);
+		} else {
+			real_offset = le32_to_cpu(*(uint32_t*)pDiffTbl);
+		}
+		vMsgOffsets.push_back(real_offset);
 	}
 
 	// We now have a vector of offset pairs:
@@ -258,12 +283,22 @@ int Mst::loadMST(const TCHAR *filename)
 		} else {
 			// Find the end of the message text.
 			size_t len = 0;
-			for (; pMsgText < reinterpret_cast<const char16_t*>(pDiffTblEnd); pMsgText++) {
-				if (*pMsgText == 0) {
-					// Found the NULL terminator.
-					break;
+			if (m_isBigEndian) {
+				for (; pMsgText < reinterpret_cast<const char16_t*>(pDiffTblEnd); pMsgText++) {
+					if (*pMsgText == cpu_to_be16(0)) {
+						// Found the NULL terminator.
+						break;
+					}
+					msgText += static_cast<char16_t>(be16_to_cpu(*pMsgText));
 				}
-				msgText += static_cast<char16_t>(be16_to_cpu(*pMsgText));
+			} else {
+				for (; pMsgText < reinterpret_cast<const char16_t*>(pDiffTblEnd); pMsgText++) {
+					if (*pMsgText == cpu_to_le16(0)) {
+						// Found the NULL terminator.
+						break;
+					}
+					msgText += static_cast<char16_t>(le16_to_cpu(*pMsgText));
+				}
 			}
 		}
 
