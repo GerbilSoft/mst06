@@ -23,6 +23,12 @@ all offsets to get the absolute address.
 
 The string table name is included in the "all message names" block.
 
+The differential offset table must be DWORD-aligned, both for its starting
+offset and for its total size. The message text block is usually DWORD-aligned,
+since the offset table consists of 32-bit units. The message names block does
+not have to be DWORD-aligned, though it is always WORD-aligned, since message
+text is encoded as UTF-16.
+
 ## Header
 
 ```c
@@ -126,6 +132,10 @@ When parsing the offsets, some notes to keep in mind:
 * If the string text's offset is >= the offset of the string table name,
   this string doesn't actually have text. The string text offset should
   be considered the string name offset of the *next* message.
+
+The end of the string table is aligned to a DWORD boundary, so extra `00`
+bytes may be present. These can be ignored. (If writing an MST file, the
+`00` bytes must be included for alignment, if necessary.)
 
 ## References
 
