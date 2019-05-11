@@ -326,3 +326,59 @@ void Mst::dump(void) const
 		printf("%s\n", utf16_to_utf8(iter->second).c_str());
 	}
 }
+
+/** Accessors **/
+
+/**
+ * Get a string's text. (UTF-8)
+ * @param idx String index.
+ * @return String text. (UTF-8)
+ */
+string Mst::strText_utf8(size_t index)
+{
+	if (index < m_vStrTbl.size())
+		return string();
+	return utf16_to_utf8(m_vStrTbl[index].second);
+}
+
+/**
+ * Get a string's text. (UTF-8)
+ * @param idx String name. (UTF-8)
+ * @return String text. (UTF-8)
+ */
+string Mst::strText_utf8(const string &name)
+{
+	auto iter = m_vStrLkup.find(name);
+	if (iter == m_vStrLkup.end()) {
+		// Not found.
+		return string();
+	}
+	return strText_utf8(iter->second);
+}
+
+/**
+ * Get a string's text. (UTF-16)
+ * @param idx String index.
+ * @return String text. (UTF-16)
+ */
+u16string Mst::strText_utf16(size_t index)
+{
+	if (index < m_vStrTbl.size())
+		return u16string();
+	return m_vStrTbl[index].second;
+}
+
+/**
+ * Get a string's text. (UTF-16)
+ * @param idx String name. (UTF-8)
+ * @return String text. (UTF-16)
+ */
+u16string Mst::strText_utf16(const string &name)
+{
+	auto iter = m_vStrLkup.find(name);
+	if (iter == m_vStrLkup.end()) {
+		// Not found.
+		return u16string();
+	}
+	return strText_utf16(iter->second);
+}

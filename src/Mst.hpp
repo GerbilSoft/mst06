@@ -76,7 +76,54 @@ class Mst
 			return m_name;
 		}
 
-		// TODO: More accessors.
+		/**
+		 * Get the string count.
+		 * @return Number of strings.
+		 */
+		size_t strCount(void) const
+		{
+			return m_vStrTbl.size();
+		}
+
+		/**
+		 * Get a string's name. (UTF-8)
+		 * @param idx String index.
+		 * @return String name. (UTF-8)
+		 */
+		std::string strName(size_t index) const
+		{
+			if (index > m_vStrTbl.size())
+				return std::string();
+			return m_vStrTbl[index].first;
+		}
+
+		/**
+		 * Get a string's text. (UTF-8)
+		 * @param idx String index.
+		 * @return String text. (UTF-8)
+		 */
+		std::string strText_utf8(size_t index);
+
+		/**
+		 * Get a string's text. (UTF-8)
+		 * @param idx String name. (UTF-8)
+		 * @return String text. (UTF-8)
+		 */
+		std::string strText_utf8(const std::string &name);
+
+		/**
+		 * Get a string's text. (UTF-16)
+		 * @param idx String index.
+		 * @return String text. (UTF-16)
+		 */
+		std::u16string strText_utf16(size_t index);
+
+		/**
+		 * Get a string's text. (UTF-16)
+		 * @param idx String name. (UTF-8)
+		 * @return String text. (UTF-16)
+		 */
+		std::u16string strText_utf16(const std::string &name);
 
 	private:
 		// MST information.
