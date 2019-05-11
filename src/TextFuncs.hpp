@@ -26,6 +26,15 @@
 // C++ includes.
 #include <string>
 
+/** Text conversion functions **/
+
+// Text conversion flags.
+typedef enum {
+	// Enable cp1252 fallback if the text fails to
+	// decode using the specified code page.
+	TEXTCONV_FLAG_CP1252_FALLBACK		= (1 << 0),
+} TextConv_Flags_e;
+
 /**
  * Convert UTF-16LE text to UTF-8.
  * WARNING: This function does NOT support NULL-terminated strings!
@@ -75,6 +84,49 @@ static inline std::string utf16_to_utf8(const std::u16string &wcs)
 	return utf16le_to_utf8(wcs);
 #else /* SYS_BYTEORDER == SYS_BIG_ENDIAN */
 	return utf16be_to_utf8(wcs);
+#endif
+}
+
+/** UTF-16 to UTF-16 conversion functions **/
+
+/**
+ * Byteswap and return UTF-16 text.
+ * WARNING: This function does NOT support NULL-terminated strings!
+ * @param wcs UTF-16 text to byteswap.
+ * @param len Length of wcs, in characters.
+ * @return Byteswapped UTF-16 string.
+ */
+std::u16string utf16_bswap(const char16_t *wcs, size_t len);
+
+/**
+ * Convert UTF-16LE text to host-endian UTF-16.
+ * WARNING: This function does NOT support NULL-terminated strings!
+ * @param wcs UTF-16LE text.
+ * @param len Length of wcs, in characters.
+ * @return Host-endian UTF-16 string.
+ */
+static inline std::u16string utf16le_to_utf16(const char16_t *wcs, int len)
+{
+#if SYS_BYTEORDER == SYS_LIL_ENDIAN
+	return std::u16string(wcs, len);
+#else /* SYS_BYTEORDER == SYS_BIG_ENDIAN */
+	return utf16_bswap(wcs, len);
+#endif
+}
+
+/**
+ * Convert UTF-16BE text to host-endian UTF-16.
+ * WARNING: This function does NOT support NULL-terminated strings!
+ * @param wcs UTF-16BLE text.
+ * @param len Length of wcs, in characters.
+ * @return Host-endian UTF-16 string.
+ */
+static inline std::u16string utf16be_to_utf16(const char16_t *wcs, int len)
+{
+#if SYS_BYTEORDER == SYS_LIL_ENDIAN
+	return utf16_bswap(wcs, len);
+#else /* SYS_BYTEORDER == SYS_BIG_ENDIAN */
+	return std::u16string(wcs, len);
 #endif
 }
 

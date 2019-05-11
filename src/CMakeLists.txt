@@ -51,6 +51,7 @@ CONFIGURE_FILE("${CMAKE_CURRENT_SOURCE_DIR}/config.mst06.h.in" "${CMAKE_CURRENT_
 SET(mst06_SRCS
 	main.cpp
 	Mst.cpp
+	TextFuncs.cpp
 	)
 SET(mst06_H
 	byteorder.h

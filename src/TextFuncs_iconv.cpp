@@ -1,6 +1,6 @@
 /***************************************************************************
- * ROM Properties Page shell extension. (librpbase)                        *
- * TextFuncs.cpp: Text encoding functions.                                 *
+ * MST Decoder/Encoder for Sonic '06                                       *
+ * TextFuncs_iconv.cpp: Text encoding functions. (iconv version)           *
  *                                                                         *
  * Copyright (c) 2009-2019 by David Korth.                                 *
  *                                                                         *
@@ -118,6 +118,11 @@ static char *rp_iconv(const char *src, int len,
  */
 std::string utf16le_to_utf8(const char16_t *wcs, size_t len)
 {
+	if (!wcs || !*wcs || len == 0) {
+		// Empty string.
+		return string();
+	}
+
 	// Attempt to convert the text from UTF-16LE to UTF-8.
 	string ret;
 	char *mbs = reinterpret_cast<char*>(rp_iconv((char*)wcs, len*sizeof(char16_t), "UTF-16LE", "UTF-8"));
@@ -137,6 +142,11 @@ std::string utf16le_to_utf8(const char16_t *wcs, size_t len)
  */
 std::string utf16be_to_utf8(const char16_t *wcs, size_t len)
 {
+	if (!wcs || !*wcs || len == 0) {
+		// Empty string.
+		return string();
+	}
+
 	// Attempt to convert the text from UTF-16BE to UTF-8.
 	string ret;
 	char *mbs = reinterpret_cast<char*>(rp_iconv((char*)wcs, len*sizeof(char16_t), "UTF-16BE", "UTF-8"));
