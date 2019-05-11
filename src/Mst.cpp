@@ -103,12 +103,12 @@ int Mst::loadMST(const TCHAR *filename)
 
 	if (m_isBigEndian) {
 		mst.file_size		= be32_to_cpu(mst.file_size);
-		mst.offset_tbl_offset	= be32_to_cpu(mst.offset_tbl_offset);
-		mst.offset_tbl_length	= be32_to_cpu(mst.offset_tbl_length);
+		mst.doff_tbl_offset	= be32_to_cpu(mst.doff_tbl_offset);
+		mst.doff_tbl_length	= be32_to_cpu(mst.doff_tbl_length);
 	} else {
 		mst.file_size		= le32_to_cpu(mst.file_size);
-		mst.offset_tbl_offset	= le32_to_cpu(mst.offset_tbl_offset);
-		mst.offset_tbl_length	= le32_to_cpu(mst.offset_tbl_length);
+		mst.doff_tbl_offset	= le32_to_cpu(mst.doff_tbl_offset);
+		mst.doff_tbl_length	= le32_to_cpu(mst.doff_tbl_length);
 	}
 
 	// Verify file size.
@@ -125,7 +125,7 @@ int Mst::loadMST(const TCHAR *filename)
 	}
 
 	// Verify offset table length and size.
-	if ((uint64_t)sizeof(MST_Header) + (uint64_t)mst.offset_tbl_offset + (uint64_t)mst.offset_tbl_length > mst.file_size) {
+	if ((uint64_t)sizeof(MST_Header) + (uint64_t)mst.doff_tbl_offset + (uint64_t)mst.doff_tbl_length > mst.file_size) {
 		// Offset table error.
 		// TODO: Store more comprehensive error information.
 		fclose(f_mst);
@@ -150,8 +150,8 @@ int Mst::loadMST(const TCHAR *filename)
 
 	// Get pointers.
 	const WTXT_Header *const pWtxt = reinterpret_cast<const WTXT_Header*>(&mst_data[sizeof(mst)]);
-	const uint8_t *pOffsetTbl = &mst_data[sizeof(mst) + mst.offset_tbl_offset];
-	const uint8_t *const pOffsetTblEnd = pOffsetTbl + mst.offset_tbl_length;
+	const uint8_t *pDOffTbl = &mst_data[sizeof(mst) + mst.doff_tbl_offset];
+	const uint8_t *const pDOffTblEnd = pDOffTbl + mst.doff_tbl_length;
 
 	// Calculate the offsets for each message.
 	// Reference: https://info.sonicretro.org/SCHG:Sonic_Forces/Formats/BINA
@@ -165,10 +165,10 @@ int Mst::loadMST(const TCHAR *filename)
 	// actual message offsets.
 	vector<uint32_t> vMsgOffsets;
 	bool doneOffsets = false;
-	for (; pOffsetTbl < pOffsetTblEnd; pOffsetTbl++) {
+	for (; pDOffTbl < pDOffTblEnd; pDOffTbl++) {
 		// High two bits of this byte indicate how long the offset is.
 		uint32_t offset_diff = 0;
-		switch (*pOffsetTbl >> 6) {
+		switch (*pDOffTbl >> 6) {
 			case 0:
 				// 0 bits long. End of offset table.
 				doneOffsets = true;
@@ -176,39 +176,39 @@ int Mst::loadMST(const TCHAR *filename)
 			case 1:
 				// 6 bits long.
 				// Take low 6 bits of this byte and left-shift by 2.
-				offset_diff = (pOffsetTbl[0] & 0x3F) << 2;
+				offset_diff = (pDOffTbl[0] & 0x3F) << 2;
 				break;
 
 			// TODO: Verify this. ('06 doesn't use this; Forces might.)
 			case 2:
 				// 14 bits long.
 				// Offset difference is stored in 2 bytes.
-				if (pOffsetTbl + 2 >= pOffsetTblEnd) {
+				if (pDOffTbl + 2 >= pDOffTblEnd) {
 					// Out of bounds!
 					// TODO: Store more comprehensive error information.
 					doneOffsets = true;
 					break;
 				}
-				offset_diff = ((pOffsetTbl[0] & 0x3F) << 10) |
-				               (pOffsetTbl[1] << 2);
-				pOffsetTbl++;
+				offset_diff = ((pDOffTbl[0] & 0x3F) << 10) |
+				               (pDOffTbl[1] << 2);
+				pDOffTbl++;
 				break;
 
 			// TODO: Verify this. ('06 doesn't use this; Forces might.)
 			case 3:
 				// 30 bits long.
 				// Offset difference is stored in 4 bytes.
-				if (pOffsetTbl + 4 >= pOffsetTblEnd) {
+				if (pDOffTbl + 4 >= pDOffTblEnd) {
 					// Out of bounds!
 					// TODO: Store more comprehensive error information.
 					doneOffsets = true;
 					break;
 				}
-				offset_diff = ((pOffsetTbl[0] & 0x3F) << 26) |
-				               (pOffsetTbl[1] << 18) |
-				               (pOffsetTbl[2] << 10) |
-				               (pOffsetTbl[3] << 2);
-				pOffsetTbl += 3;
+				offset_diff = ((pDOffTbl[0] & 0x3F) << 26) |
+				               (pDOffTbl[1] << 18) |
+				               (pDOffTbl[2] << 10) |
+				               (pDOffTbl[3] << 2);
+				pDOffTbl += 3;
 				break;
 		}
 

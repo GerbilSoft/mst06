@@ -44,8 +44,8 @@
 #define BINA_MAGIC 'BINA'
 typedef struct PACKED _MST_Header {
 	uint32_t file_size;		// [0x000] Total size of the MST file.
-	uint32_t offset_tbl_offset;	// [0x004] Start of the offset table.
-	uint32_t offset_tbl_length;	// [0x008] Offset table length.
+	uint32_t doff_tbl_offset;	// [0x004] Start of the differential offset table.
+	uint32_t doff_tbl_length;	// [0x008] Differential offset table length.
 	uint32_t unk_zero1;		// [0x00C]
 	uint32_t unk_zero2;		// [0x010]
 	uint16_t unk_zero3;		// [0x014]
