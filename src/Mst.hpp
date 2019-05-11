@@ -1,6 +1,6 @@
 /***************************************************************************
  * MST Decoder/Encoder for Sonic '06                                       *
- * main.cpp: Main program.                                                 *
+ * Mst.hpp: MST container class.                                           *
  *                                                                         *
  * Copyright (c) 2019 by David Korth.                                      *
  *                                                                         *
@@ -18,37 +18,71 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.   *
  ***************************************************************************/
 
-#include <stdlib.h>
-
-#include <cerrno>
-#include <cstdio>
-#include <cstring>
-
-#include <string>
-#include <vector>
-using std::string;
-using std::vector;
-using std::pair;
+#ifndef __MST06_MST_HPP__
+#define __MST06_MST_HPP__
 
 #include "tcharx.h"
-#include "Mst.hpp"
 
-int _tmain(int argc, TCHAR *argv[])
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+class Mst
 {
-	if (argc != 2) {
-		_ftprintf(stderr, _T("Syntax: %s mst_file.mst\n"), argv[0]);
-		return EXIT_FAILURE;
-	}
+	public:
+		Mst() { }
+		~Mst() { }
 
-	Mst mst;
-	int ret = mst.loadMST(argv[1]);
-	if (ret != 0) {
-		_ftprintf(stderr, _T("*** ERROR loading %s: %s\n"), argv[1], _tcserror(-ret));
-		return EXIT_FAILURE;
-	}
+	public:
+		// Disable copying.
+		Mst(const Mst&) = delete;
+		Mst &operator=(const Mst&) = delete;
 
-	// Dump the MST.
-	mst.dump();
+	public:
+		/**
+		 * Load an MST string table.
+		 * @param filename MST string table filename.
+		 * @return 0 on success; negative POSIX error code on error.
+		 */
+		int loadMST(const TCHAR *filename);
 
-	return 0;
-}
+		/**
+		 * Dump the string table to stdout.
+		 */
+		void dump(void) const;
+
+	public:
+		// TODO: Save MST, Load XML, Save XML
+		// TODO: Iterator and mutator functions.
+
+	public:
+		/** Accessor functions. **/
+
+		/**
+		 * Get the string table name.
+		 * @return String table name.
+		 */
+		const std::string &tblName(void) const
+		{
+			return m_name;
+		}
+
+		// TODO: More accessors.
+
+	private:
+		// String table name. (UTF-8)
+		std::string m_name;
+		
+		// Main string table.
+		// - Index: String index.
+		// - First: String name. (UTF-8)
+		// - Second: String text. (UTF-16)
+		std::vector<std::pair<std::string, std::u16string> > m_vStrTbl;
+
+		// String name to index lookup.
+		// - Key: String name. (UTF-8)
+		// - Value: String index.
+		std::unordered_map<std::string, size_t> m_vStrLkup;
+};
+
+#endif /* __MST06_MST_HPP__ */

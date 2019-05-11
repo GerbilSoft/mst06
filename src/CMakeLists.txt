@@ -15,11 +15,13 @@ CONFIGURE_FILE("${CMAKE_CURRENT_SOURCE_DIR}/config.byteswap.h.in" "${CMAKE_CURRE
 ### Main executable. ###
 SET(mst06_SRCS
 	main.cpp
+	Mst.cpp
 	)
 SET(mst06_H
 	byteorder.h
 	byteswap.h
 	mst_structs.h
+	Mst.hpp
 	)
 
 ADD_EXECUTABLE(mst06 ${mst06_SRCS} ${mst06_H})
