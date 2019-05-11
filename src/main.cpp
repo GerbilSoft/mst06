@@ -1,6 +1,6 @@
 /***************************************************************************
  * MST Decoder/Encoder for Sonic '06                                       *
- * mst06.cpp: Main program.                                                *
+ * main.cpp: Main program.                                                 *
  *                                                                         *
  * Copyright (c) 2019 by David Korth.                                      *
  *                                                                         *

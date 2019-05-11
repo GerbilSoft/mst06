@@ -13,7 +13,9 @@ ENDIF(NOT MSVC)
 CONFIGURE_FILE("${CMAKE_CURRENT_SOURCE_DIR}/config.byteswap.h.in" "${CMAKE_CURRENT_BINARY_DIR}/config.byteswap.h")
 
 ### Main executable. ###
-SET(mst06_SRCS mst06.cpp)
+SET(mst06_SRCS
+	main.cpp
+	)
 SET(mst06_H
 	byteorder.h
 	byteswap.h
