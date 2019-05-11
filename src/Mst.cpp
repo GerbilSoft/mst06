@@ -364,7 +364,7 @@ int Mst::saveXML(const TCHAR *filename) const
 		xml_msg->SetAttribute("index", static_cast<unsigned int>(i));
 		xml_msg->SetAttribute("name", iter->first.c_str());
 		if (!iter->second.empty()) {
-			xml_msg->SetText(utf16_to_utf8(iter->second).c_str());
+			xml_msg->SetText(escape(utf16_to_utf8(iter->second)).c_str());
 		}
 	}
 
@@ -451,4 +451,148 @@ u16string Mst::strText_utf16(const string &name)
 		return u16string();
 	}
 	return strText_utf16(iter->second);
+}
+
+/** String escape functions **/
+
+/**
+ * Escape a UTF-8 string.
+ * @param str Unescaped string.
+ * @return Escaped string.
+ */
+string Mst::escape(const string &str)
+{
+	string ret;
+	ret.reserve(str.size() + 8);
+	for (auto iter = str.cbegin(); iter != str.cend(); ++iter) {
+		switch (*iter) {
+			case '\\':
+				ret += "\\\\";
+				break;
+			case '\n':
+				ret += "\\n";
+				break;
+			case '\f':
+				ret += "\\f";
+				break;
+			default:
+				ret += *iter;
+				break;
+		}
+	}
+	return ret;
+}
+
+/**
+ * Escape a UTF-16 string.
+ * @param str Unescaped string.
+ * @return Escaped string.
+ */
+u16string Mst::escape(const u16string &str)
+{
+	u16string ret;
+	ret.reserve(str.size() + 8);
+	for (auto iter = str.cbegin(); iter != str.cend(); ++iter) {
+		switch (*iter) {
+			case '\\':
+				ret += u"\\\\";
+				break;
+			case '\n':
+				ret += u"\\\n";
+				break;
+			case '\f':
+				ret += u"\\\f";
+				break;
+			default:
+				ret += *iter;
+				break;
+		}
+	}
+	return ret;
+}
+
+/**
+ * Unescape a UTF-8 string.
+ * @param str Escaped string.
+ * @return Unescaped string.
+ */
+string Mst::unescape(const string &str)
+{
+	string ret;
+	ret.reserve(str.size());
+	for (auto iter = str.cbegin(); iter != str.cend(); ++iter) {
+		if (*iter != '\\') {
+			// Not an escape character.
+			ret += *iter;
+			continue;
+		}
+
+		// Escape character.
+		++iter;
+		if (iter == str.cend()) {
+			// Backslash at the end of the string.
+			ret += '\\';
+			break;
+		}
+		switch (*iter) {
+			case '\\':
+				ret += '\\';
+				break;
+			case 'n':
+				ret += '\n';
+				break;
+			case 'f':
+				ret += '\f';
+				break;
+			default:
+				// Invalid escape sequence.
+				ret += '\\';
+				ret += *iter;
+				break;
+		}
+	}
+	return ret;
+}
+
+/**
+ * Unescape a UTF-16 string.
+ * @param str Escaped string.
+ * @return Unscaped string.
+ */
+u16string Mst::unescape(const u16string &str)
+{
+	u16string ret;
+	ret.reserve(str.size());
+	for (auto iter = str.cbegin(); iter != str.cend(); ++iter) {
+		if (*iter != u'\\') {
+			// Not an escape character.
+			ret += *iter;
+			continue;
+		}
+
+		// Escape character.
+		++iter;
+		if (iter == str.cend()) {
+			// Backslash at the end of the string.
+			ret += u'\\';
+			break;
+		}
+		switch (*iter) {
+			case '\\':
+				ret += u'\\';
+				break;
+			case 'n':
+				ret += u'\n';
+				break;
+			case 'f':
+				ret += u'\f';
+				break;
+			default:
+				// Invalid escape sequence.
+				ret += u'\\';
+				ret += *iter;
+				break;
+		}
+	}
+	return ret;
 }

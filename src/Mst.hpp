@@ -64,7 +64,7 @@ class Mst
 		void dump(void) const;
 
 	public:
-		/** Accessor functions. **/
+		/** Accessors **/
 
 		/**
 		 * Is the file big-endian?
@@ -132,6 +132,38 @@ class Mst
 		 * @return String text. (UTF-16)
 		 */
 		std::u16string strText_utf16(const std::string &name);
+
+	public:
+		/** String escape functions **/
+		// TODO: Use templates?
+
+		/**
+		 * Escape a UTF-8 string.
+		 * @param str Unescaped string.
+		 * @return Escaped string.
+		 */
+		static std::string escape(const std::string &str);
+
+		/**
+		 * Escape a UTF-16 string.
+		 * @param str Unescaped string.
+		 * @return Escaped string.
+		 */
+		static std::u16string escape(const std::u16string &str);
+
+		/**
+		 * Unescape a UTF-8 string.
+		 * @param str Escaped string.
+		 * @return Unescaped string.
+		 */
+		static std::string unescape(const std::string &str);
+
+		/**
+		 * Unescape a UTF-16 string.
+		 * @param str Escaped string.
+		 * @return Unscaped string.
+		 */
+		static std::u16string unescape(const std::u16string &str);
 
 	private:
 		// MST information.
