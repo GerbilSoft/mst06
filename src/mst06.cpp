@@ -1,6 +1,6 @@
 /***************************************************************************
  * MST Decoder/Encoder for Sonic '06                                       *
- * main.cpp: Main program.                                                 *
+ * mst06.cpp: Main program.                                                *
  *                                                                         *
  * Copyright (c) 2019 by David Korth.                                      *
  *                                                                         *
@@ -32,17 +32,18 @@ using std::pair;
 
 #include "mst_structs.h"
 #include "byteswap.h"
+#include "tcharx.h"
 
-int main(int argc, char *argv[])
+int _tmain(int argc, TCHAR *argv[])
 {
 	if (argc != 2) {
-		fprintf(stderr, "Syntax: %s mst_file.mst\n", argv[0]);
+		_ftprintf(stderr, _T("Syntax: %s mst_file.mst\n"), argv[0]);
 		return EXIT_FAILURE;
 	}
 
-	FILE *f_mst = fopen(argv[1], "rb");
+	FILE *f_mst = _tfopen(argv[1], _T("rb"));
 	if (!f_mst) {
-		fprintf(stderr, "*** ERROR opening %s: %s\n", argv[1], strerror(errno));
+		_ftprintf(stderr, _T("*** ERROR opening %s: %s\n"), argv[1], _tcserror(errno));
 		return EXIT_FAILURE;
 	}
 
