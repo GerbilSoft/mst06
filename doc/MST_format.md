@@ -87,7 +87,7 @@ typedef struct PACKED _WTXT_MsgPointer {
 * `msg_id_name_offset`: Offset of the message name. Encoded as Shift-JIS.
 * `msg_offset`: Offset of the message text. Encoded as UTF-16.
   Endianness depends on file endianness.
-* `zero`: Unused. **HOWEVER**, this may not be present in the offset table.
+* `zero`: Unused. **HOWEVER**, this field may actually be missing entirely.
 
 `msg_tbl_count` is equal to the total number of strings in the offset table,
 assuming each string entry is exactly 12 bytes. For an unknown reason, many
