@@ -1,0 +1,16 @@
+This copy of tinyxml2-7.0.1 is a modified version of the original.
+
+The following changes have been made to the original:
+
+- Non-CMake build infrastructure has been removed.
+
+- Parts of the original CMakeLists.txt that were not necessary for
+  rom-properties have been disabled, including the test suite.
+
+- Test cases are no longer built and run.
+
+- cmake_minimum_required() is disabled, since it interfered with
+  policies set by the main build infrastructure.
+
+To obtain the original tinyxml2-7.0.1, visit:
+https://github.com/leethomason/tinyxml2

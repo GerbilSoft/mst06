@@ -41,6 +41,10 @@ using std::vector;
 // Text encoding functions.
 #include "TextFuncs.hpp"
 
+// TODO: Check ENABLE_XML?
+#include <tinyxml2.h>
+using namespace tinyxml2;
+
 Mst::Mst()
 	: m_version(1)
 	, m_isBigEndian(true)
@@ -53,6 +57,10 @@ Mst::Mst()
  */
 int Mst::loadMST(const TCHAR *filename)
 {
+	if (!filename) {
+		return -EINVAL;
+	}
+
 	int err;
 
 	// Clear the current string tables.
@@ -308,6 +316,69 @@ int Mst::loadMST(const TCHAR *filename)
 
 	// We're done here.
 	return 0;
+}
+
+/**
+ * Custom XMLPrinter that uses tabs instead of spaces.
+ */
+class MstXMLPrinter : public XMLPrinter
+{
+	public:
+		MstXMLPrinter(FILE *file = nullptr, bool compact = false, int depth = 0)
+			: XMLPrinter(file, compact, depth) { }
+
+	public:
+		void PrintSpace(int depth) final
+		{
+			for (; depth > 0; depth--) {
+				Putc('\t');
+			}
+		}
+};
+
+/**
+ * Save the string table as XML.
+ * @param filename XML filename.
+ * @return 0 on success; negative POSIX error code or positive TinyXML2 error code on error.
+ */
+int Mst::saveXML(const TCHAR *filename) const
+{
+	if (!filename) {
+		return -EINVAL;
+	} else if (m_vStrTbl.empty()) {
+		return -ENODATA;	// TODO: Better error code?
+	}
+
+	// Create an XML document.
+	XMLDocument xml;
+	XMLDeclaration *xml_decl = xml.NewDeclaration();
+	xml.InsertFirstChild(xml_decl);
+	XMLElement *xml_msgTbl = xml.NewElement("mst06");
+	xml.InsertEndChild(xml_msgTbl);
+	xml_msgTbl->SetAttribute("name", m_name.c_str());
+
+	size_t i = 0;
+	for (auto iter = m_vStrTbl.cbegin(); iter != m_vStrTbl.cend(); ++iter, ++i) {
+		XMLElement *xml_msg = xml.NewElement("message");
+		xml_msgTbl->InsertEndChild(xml_msg);
+		xml_msg->SetAttribute("index", static_cast<unsigned int>(i));
+		xml_msg->SetAttribute("name", iter->first.c_str());
+		if (!iter->second.empty()) {
+			xml_msg->SetText(utf16_to_utf8(iter->second).c_str());
+		}
+	}
+
+	// Save the XML document.
+	// NOTE: Using our custom XMLPrinter for tabs instead of spaces.
+	FILE *f_xml = _tfopen(filename, _T("w"));
+	if (!f_xml) {
+		// Error opening the XML file.
+		return -errno;
+	}
+
+	MstXMLPrinter stream(f_xml, false);
+	xml.Print(&stream);
+	return xml.ErrorID();
 }
 
 /**

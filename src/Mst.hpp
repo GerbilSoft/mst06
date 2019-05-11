@@ -47,13 +47,21 @@ class Mst
 		int loadMST(const TCHAR *filename);
 
 		/**
+		 * Save the string table as XML.
+		 * @param filename XML filename.
+		 * @return 0 on success; negative POSIX error code or positive TinyXML2 error code on error.
+		 */
+		int saveXML(const TCHAR *filename) const;
+
+	public:
+		// TODO: Save MST, Load XML
+		// TODO: Iterator and mutator functions.
+
+	public:
+		/**
 		 * Dump the string table to stdout.
 		 */
 		void dump(void) const;
-
-	public:
-		// TODO: Save MST, Load XML, Save XML
-		// TODO: Iterator and mutator functions.
 
 	public:
 		/** Accessor functions. **/

@@ -26,17 +26,25 @@
 
 #include <string>
 #include <vector>
+using std::pair;
 using std::string;
 using std::vector;
-using std::pair;
+using std::wstring;
 
 #include "tcharx.h"
 #include "Mst.hpp"
+
+#ifdef _WIN32
+# define SLASH_CHAR _T('\\')
+#else /* !_WIN32 */
+# define SLASH_CHAR '/'
+#endif
 
 int _tmain(int argc, TCHAR *argv[])
 {
 	if (argc != 2) {
 		_ftprintf(stderr, _T("Syntax: %s mst_file.mst\n"), argv[0]);
+		_ftprintf(stderr, _T("File will be converted to mst_file.xml.\n"));
 		return EXIT_FAILURE;
 	}
 
@@ -47,8 +55,32 @@ int _tmain(int argc, TCHAR *argv[])
 		return EXIT_FAILURE;
 	}
 
-	// Dump the MST.
-	mst.dump();
+	// Create a filename for the XML file.
+	// NOTE: If it's an absolute path, the XML file will be
+	// stored in the same directory as the MST file.
+	tstring xml_filename(argv[1]);
+	bool replaced_ext = false;
+	size_t slashpos = xml_filename.rfind(SLASH_CHAR);
+	size_t dotpos = xml_filename.rfind(_T('.'));
+	if (dotpos != tstring::npos) {
+		// We have a dot.
+		// If a slash is present, it must be before the dot.
+		if (slashpos == tstring::npos || slashpos < dotpos) {
+			// Replace the extension.
+			xml_filename.resize(dotpos);
+			xml_filename += _T(".xml");
+			replaced_ext = true;
+		}
+	}
 
-	return 0;
+	if (!replaced_ext) {
+		// No extension to replace.
+		// Add an extension.
+		xml_filename += _T(".xml");
+	}
+
+	// Convert to XML.
+	ret = mst.saveXML(xml_filename.c_str());
+	_tprintf(_T("*** saveXML to %s: %d\n"), xml_filename.c_str(), ret);
+	return ret;
 }

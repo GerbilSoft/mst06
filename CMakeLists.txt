@@ -2,7 +2,9 @@ PROJECT(mst06_base)
 CMAKE_MINIMUM_REQUIRED(VERSION 3.1)
 
 LIST(APPEND CMAKE_MODULE_PATH
+	"${CMAKE_SOURCE_DIR}/cmake/macros"
 	"${CMAKE_SOURCE_DIR}/cmake/modules"
+	"${CMAKE_SOURCE_DIR}/cmake/libs"
 	)
 
 # If no build type is set, default to "Debug".
@@ -14,6 +16,14 @@ ELSEIF(TMP_BUILD_TYPE MATCHES "none")
 	SET(CMAKE_BUILD_TYPE "Release")
 ENDIF()
 UNSET(TMP_BUILD_TYPE)
+
+# Put all the binaries and libraries into a single directory.
+# NOTE: CACHE INTERNAL is required in order to get this to work
+# for KDE5 for some reason. (and maybe that's why KDE4 did this
+# layout by default?)
+SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin" CACHE INTERNAL "Put all binaries in a single directory.")
+SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib" CACHE INTERNAL "Put all libraries in a single directory.")
+SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib" CACHE INTERNAL "Put all archives in a single directory.")
 
 # Program information.
 SET(DESCRIPTION "Sonic '06 MST File Decoder and Encoder")
@@ -32,6 +42,32 @@ IF(VERSION_DEVEL)
 	SET(VERSION_STRING "${VERSION_STRING}+")
 ENDIF(VERSION_DEVEL)
 SET(VERSION_STRING_WIN32 "${VERSION_MAJOR},${VERSION_MINOR},${VERSION_PATCH},${VERSION_DEVEL}")
+
+# Split Debug macro.
+# Also sets the image version for Windows builds.
+INCLUDE(Win32ImageVersionLinkerFlags)
+MACRO(DO_SPLIT_DEBUG _target)
+	IF(TARGET ${_target})
+		# Split debug information.
+		INCLUDE(SetMSVCDebugPath)
+		SET_MSVC_DEBUG_PATH(${_target})
+		IF(SPLIT_DEBUG)
+			INCLUDE(SplitDebugInformation)
+			SPLIT_DEBUG_INFORMATION(${_target})
+		ENDIF(SPLIT_DEBUG)
+		# Set image version.
+		# Subprojects can override ${VERSION_MAJOR} and ${VERSION_MINOR}.
+		# FIXME: If minor version is e.g. "3", Windows interprets it as "03",
+		# so "1.3" will actually be "1.03".
+		WIN32_IMAGE_VERSION_LINKER_FLAGS(${VERSION_MAJOR} ${VERSION_MINOR})
+	ENDIF(TARGET ${_target})
+ENDMACRO(DO_SPLIT_DEBUG)
+
+# Windows-specific functions.
+INCLUDE(WindowsFunctions)
+
+# Check for required libraries.
+INCLUDE(CheckTinyXML2)
 
 ########### Add uninstall target ###############
 CONFIGURE_FILE(
@@ -116,4 +152,5 @@ ELSE(MSVC)
 ENDIF(MSVC)
 
 # Project subdirectories.
+ADD_SUBDIRECTORY(extlib)
 ADD_SUBDIRECTORY(src)
