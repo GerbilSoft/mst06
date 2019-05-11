@@ -100,7 +100,7 @@ class Mst
 		 */
 		std::string strName(size_t index) const
 		{
-			if (index > m_vStrTbl.size())
+			if (index >= m_vStrTbl.size())
 				return std::string();
 			return m_vStrTbl[index].first;
 		}

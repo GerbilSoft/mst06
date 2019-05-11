@@ -406,7 +406,7 @@ void Mst::dump(void) const
  */
 string Mst::strText_utf8(size_t index)
 {
-	if (index < m_vStrTbl.size())
+	if (index >= m_vStrTbl.size())
 		return string();
 	return utf16_to_utf8(m_vStrTbl[index].second);
 }
@@ -433,7 +433,7 @@ string Mst::strText_utf8(const string &name)
  */
 u16string Mst::strText_utf16(size_t index)
 {
-	if (index < m_vStrTbl.size())
+	if (index >= m_vStrTbl.size())
 		return u16string();
 	return m_vStrTbl[index].second;
 }
