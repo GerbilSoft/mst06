@@ -52,7 +52,6 @@ int _tmain(int argc, TCHAR *argv[])
 	}
 
 	// Open the file and check if it's MST or XML.
-	// TODO: loadMST() overload for FILE*.
 	FILE *f_in = _tfopen(argv[1], _T("rb"));
 	if (!f_in) {
 		_ftprintf(stderr, _T("*** ERROR opening %s: %s\n"), argv[1], _tcserror(errno));
@@ -63,12 +62,12 @@ int _tmain(int argc, TCHAR *argv[])
 	errno = 0;
 	size_t size = fread(buf, 1, sizeof(buf), f_in);
 	int err = errno;
-	fclose(f_in);
 	if (size != sizeof(buf)) {
 		if (err == 0) err = EIO;
 		_ftprintf(stderr, _T("*** ERROR reading file %s: %s\n"), argv[1], _tcserror(errno));
 		return EXIT_FAILURE;
 	}
+	rewind(f_in);
 
 	Mst mst;
 	int ret;
@@ -81,15 +80,18 @@ int _tmain(int argc, TCHAR *argv[])
 		// Parse as XML and convert to MST.
 		out_ext = _T(".mst");
 		writeMST = true;
-		ret = mst.loadXML(argv[1]);
+		ret = mst.loadXML(f_in);
+		fclose(f_in);
 	} else if (!memcmp(&buf[0x18], "BINA", 4)) {
 		// This is an MST file.
 		// Parse as MST and convert to XML.
 		out_ext = _T(".xml");
 		writeXML = true;
-		ret = mst.loadMST(argv[1]);
+		ret = mst.loadMST(f_in);
+		fclose(f_in);
 	} else {
 		// Unrecognized file format.
+		fclose(f_in);
 		_ftprintf(stderr, _T("*** ERROR: File %s is not recognized.\n"), argv[1]);
 		return EXIT_FAILURE;
 	}

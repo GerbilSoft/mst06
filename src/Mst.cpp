@@ -25,7 +25,13 @@
 
 // C includes. (C++ namespace)
 #include <cerrno>
+#include <cstdio>
 #include <cstring>
+
+#ifdef _MSC_VER
+# define fseeko(stream, offset, whence) _fseeki64((stream), (offset), (whence))
+# define ftello(stream) _ftelli64(stream)
+#endif
 
 // C++ includes.
 #include <memory>
@@ -61,6 +67,27 @@ int Mst::loadMST(const TCHAR *filename)
 		return -EINVAL;
 	}
 
+	FILE *f_mst = _tfopen(filename, _T("rb"));
+	if (!f_mst) {
+		// Error opening the file.
+		return -errno;
+	}
+	int ret = loadMST(f_mst);
+	fclose(f_mst);
+	return ret;
+}
+
+/**
+ * Load an MST string table.
+ * @param fp MST string table file.
+ * @return 0 on success; negative POSIX error code on error.
+ */
+int Mst::loadMST(FILE *fp)
+{
+	if (!fp) {
+		return -EINVAL;
+	}
+
 	int err;
 
 	// Clear the current string tables.
@@ -68,26 +95,18 @@ int Mst::loadMST(const TCHAR *filename)
 	m_vStrTbl.clear();
 	m_vStrLkup.clear();
 
-	FILE *f_mst = _tfopen(filename, _T("rb"));
-	if (!f_mst) {
-		// Error opening the file.
-		return -errno;
-	}
-
 	// Read the MST header.
 	MST_Header mst;
-	size_t size = fread(&mst, 1, sizeof(mst), f_mst);
+	size_t size = fread(&mst, 1, sizeof(mst), fp);
 	if (size != sizeof(mst)) {
 		// Read error.
 		// TODO: Store more comprehensive error information.
-		fclose(f_mst);
 		return -EIO;
 	}
 
 	// Check the BINA magic number.
 	if (mst.bina_magic != cpu_to_be32(BINA_MAGIC)) {
 		// TODO: Store more comprehensive error information.
-		fclose(f_mst);
 		return -EIO;
 	}
 
@@ -95,7 +114,6 @@ int Mst::loadMST(const TCHAR *filename)
 	if (mst.version != '1' || (mst.endianness != 'B' && mst.endianness != 'L')) {
 		// Unsupported version and/or invalid endianness.
 		// TODO: Store more comprehensive error information.
-		fclose(f_mst);
 		return -EIO;
 	}
 	m_version = 1;
@@ -115,12 +133,10 @@ int Mst::loadMST(const TCHAR *filename)
 	if (mst.file_size < sizeof(MST_Header) + sizeof(WTXT_Header) + sizeof(WTXT_MsgPointer)) {
 		// Sanity check: File is too small.
 		// TODO: Store more comprehensive error information.
-		fclose(f_mst);
 		return -EIO;
 	} else if (mst.file_size > 16U*1024*1024) {
 		// Sanity check: Must be 16 MB or less.
 		// TODO: Store more comprehensive error information.
-		fclose(f_mst);
 		return -EIO;
 	}
 
@@ -128,17 +144,17 @@ int Mst::loadMST(const TCHAR *filename)
 	if ((uint64_t)sizeof(MST_Header) + (uint64_t)mst.doff_tbl_offset + (uint64_t)mst.doff_tbl_length > mst.file_size) {
 		// Offset table error.
 		// TODO: Store more comprehensive error information.
-		fclose(f_mst);
 		return -EIO;
 	}
 
 	// Read the entire file.
+	// NOTE: Using a relative seek in case the file pointer was set by
+	// the caller to not be at the beginning of the file.
 	unique_ptr<uint8_t[]> mst_data(new uint8_t[mst.file_size]);
-	rewind(f_mst);
+	fseeko(fp, -(off_t)(sizeof(mst)), SEEK_CUR);
 	errno = 0;
-	size = fread(mst_data.get(), 1, mst.file_size, f_mst);
+	size = fread(mst_data.get(), 1, mst.file_size, fp);
 	err = errno;
-	fclose(f_mst);
 	if (size != mst.file_size) {
 		// Short read.
 		// TODO: Store more comprehensive error information.
@@ -348,22 +364,37 @@ int Mst::loadXML(const TCHAR *filename, std::vector<std::string> *pVecErrs)
 		return -EINVAL;
 	}
 
-	// Clear the current string tables.
-	m_name.clear();
-	m_vStrTbl.clear();
-	m_vStrLkup.clear();
-
 	// Open the XML document.
 	FILE *f_xml = _tfopen(filename, _T("r"));
 	if (!f_xml) {
 		// Error opening the XML document.
 		return -errno;
 	}
+	int ret = loadXML(f_xml, pVecErrs);
+	fclose(f_xml);
+	return ret;
+}
+
+/**
+ * Load an XML string table.
+ * @param fp		[in] XML file.
+ * @param pVecErrs	[out,opt] Vector of user-readable error messages.
+ * @return 0 on success; negative POSIX error code or positive TinyXML2 error code on error.
+ */
+int Mst::loadXML(FILE *fp, std::vector<std::string> *pVecErrs)
+{
+	if (!fp) {
+		return -EINVAL;
+	}
+
+	// Clear the current string tables.
+	m_name.clear();
+	m_vStrTbl.clear();
+	m_vStrLkup.clear();
 
 	// Parse the XML document.
 	XMLDocument xml;
-	int ret = xml.LoadFile(f_xml);
-	fclose(f_xml);
+	int ret = xml.LoadFile(fp);
 	if (ret != 0) {
 		// Error parsing the XML document.
 		if (pVecErrs) {
@@ -515,6 +546,23 @@ int Mst::saveXML(const TCHAR *filename) const
 		return -ENODATA;	// TODO: Better error code?
 	}
 
+	FILE *f_xml = _tfopen(filename, _T("w"));
+	if (!f_xml) {
+		// Error opening the XML file.
+		return -errno;
+	}
+	int ret = saveXML(f_xml);
+	fclose(f_xml);
+	return ret;
+}
+
+/**
+ * Save the string table as XML.
+ * @param fp XML file.
+ * @return 0 on success; negative POSIX error code or positive TinyXML2 error code on error.
+ */
+int Mst::saveXML(FILE *fp) const
+{
 	// Create an XML document.
 	XMLDocument xml;
 	XMLDeclaration *const xml_decl = xml.NewDeclaration();
@@ -536,15 +584,8 @@ int Mst::saveXML(const TCHAR *filename) const
 
 	// Save the XML document.
 	// NOTE: Using our custom XMLPrinter for tabs instead of spaces.
-	FILE *f_xml = _tfopen(filename, _T("w"));
-	if (!f_xml) {
-		// Error opening the XML file.
-		return -errno;
-	}
-
-	MstXMLPrinter stream(f_xml, false);
+	MstXMLPrinter stream(fp, false);
 	xml.Print(&stream);
-	fclose(f_xml);
 	return xml.ErrorID();
 }
 
