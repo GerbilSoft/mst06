@@ -43,36 +43,79 @@ using std::wstring;
 int _tmain(int argc, TCHAR *argv[])
 {
 	if (argc != 2 && argc != 3) {
-		_ftprintf(stderr, _T("Syntax: %s mst_file.mst [mst_file.xml]\n\n"), argv[0]);
+		_ftprintf(stderr, _T("Syntax: %s [filenames]\n\n"), argv[0]);
+		_ftprintf(stderr, _T("- Convert MST to XML: %s mst_file.mst [mst_file.xml]\n"), argv[0]);
+		_ftprintf(stderr, _T("- Convert XML to MST: %s mst_file.xml [mst_file.mst]\n\n"), argv[0]);
 		_ftprintf(stderr, _T("Default output filename replaces the file extension on the\n"));
-		_ftprintf(stderr, _T("input file with .xml.\n"));
+		_ftprintf(stderr, _T("input file with .xml or .mst, depending on operation.\n"));
+		return EXIT_FAILURE;
+	}
+
+	// Open the file and check if it's MST or XML.
+	// TODO: loadMST() overload for FILE*.
+	FILE *f_in = _tfopen(argv[1], "rb");
+	if (!f_in) {
+		_ftprintf(stderr, _T("*** ERROR opening %s: %s\n"), argv[1], _tcserror(errno));
+		return EXIT_FAILURE;
+	}
+
+	char buf[32];
+	errno = 0;
+	size_t size = fread(buf, 1, sizeof(buf), f_in);
+	int err = errno;
+	fclose(f_in);
+	if (size != sizeof(buf)) {
+		if (err == 0) err = EIO;
+		_ftprintf(stderr, _T("*** ERROR reading file %s: %s\n"), argv[1], _tcserror(errno));
 		return EXIT_FAILURE;
 	}
 
 	Mst mst;
-	int ret = mst.loadMST(argv[1]);
+	int ret;
+
+	// Check if this is XML.
+	const TCHAR *out_ext = nullptr;
+	bool writeXML = false, writeMST = false;
+	if (!memcmp(buf, "<?xml ", 6)) {
+		// This is an XML file.
+		// Parse as XML and convert to MST.
+		out_ext = _T(".mst");
+		writeMST = true;
+		ret = mst.loadXML(argv[1]);
+	} else if (!memcmp(&buf[0x18], "BINA", 4)) {
+		// This is an MST file.
+		// Parse as MST and convert to XML.
+		out_ext = _T(".xml");
+		writeXML = true;
+		ret = mst.loadMST(argv[1]);
+	} else {
+		// Unrecognized file format.
+		_ftprintf(stderr, _T("*** ERROR: File %s is not recognized.\n"), argv[1]);
+		return EXIT_FAILURE;
+	}
+
 	if (ret != 0) {
 		_ftprintf(stderr, _T("*** ERROR loading %s: %s\n"), argv[1], _tcserror(-ret));
 		return EXIT_FAILURE;
 	}
 
-	tstring xml_filename;
+	tstring out_filename;
 	if (argc == 2) {
 		// Output filename not specified.
 		// Create the filename.
 		// NOTE: If it's an absolute path, the XML file will be
 		// stored in the same directory as the MST file.
-		xml_filename = argv[1];
+		out_filename = argv[1];
 		bool replaced_ext = false;
-		size_t slashpos = xml_filename.rfind(SLASH_CHAR);
-		size_t dotpos = xml_filename.rfind(_T('.'));
+		size_t slashpos = out_filename.rfind(SLASH_CHAR);
+		size_t dotpos = out_filename.rfind(_T('.'));
 		if (dotpos != tstring::npos) {
 			// We have a dot.
 			// If a slash is present, it must be before the dot.
 			if (slashpos == tstring::npos || slashpos < dotpos) {
 				// Replace the extension.
-				xml_filename.resize(dotpos);
-				xml_filename += _T(".xml");
+				out_filename.resize(dotpos);
+				out_filename += out_ext;
 				replaced_ext = true;
 			}
 		}
@@ -80,15 +123,22 @@ int _tmain(int argc, TCHAR *argv[])
 		if (!replaced_ext) {
 			// No extension to replace.
 			// Add an extension.
-			xml_filename += _T(".xml");
+			out_filename += out_ext;
 		}
 	} else /*if (argc == 3)*/ {
 		// Output filename is specified.
-		xml_filename = argv[2];
+		out_filename = argv[2];
 	}
 
-	// Convert to XML.
-	ret = mst.saveXML(xml_filename.c_str());
-	_tprintf(_T("*** saveXML to %s: %d\n"), xml_filename.c_str(), ret);
+	ret = 0;
+	if (writeXML) {
+		// Convert to XML.
+		ret = mst.saveXML(out_filename.c_str());
+		_tprintf(_T("*** saveXML to %s: %d\n"), out_filename.c_str(), ret);
+	} else if (writeMST) {
+		// Convert to MST.
+		// TODO: Not implemented yet - dump to stdout instead.
+		mst.dump();
+	}
 	return ret;
 }

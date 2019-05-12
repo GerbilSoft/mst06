@@ -26,6 +26,14 @@
 using std::u16string;
 using std::string;
 
+// Determine the system encodings.
+#include "byteorder.h"
+#if SYS_BYTEORDER == SYS_BIG_ENDIAN
+# define ICONV_UTF16_ENCODING "UTF-16BE"
+#else
+# define ICONV_UTF16_ENCODING "UTF-16LE"
+#endif
+
 // iconv
 #include <iconv.h>
 
@@ -199,7 +207,63 @@ string cpN_to_utf8(unsigned int cp, const char *str, int len, unsigned int flags
 	return ret;
 }
 
-/** Unicode to Unicode conversion functions. **/
+/**
+ * Convert 8-bit text to UTF-16.
+ * WARNING: This function does NOT support NULL-terminated strings!
+ *
+ * The specified code page number will be used.
+ *
+ * @param cp	[in] Code page number.
+ * @param str	[in] 8-bit text.
+ * @param len	[in] Length of str, in bytes. (-1 for NULL-terminated string)
+ * @param flags	[in] Flags. (See TextConv_Flags_e.)
+ * @return UTF-16 string.
+ */
+u16string cpN_to_utf16(unsigned int cp, const char *str, int len, unsigned int flags)
+{
+	// Get the encoding name for the primary code page.
+	char cp_name[20];
+	codePageToEncName(cp_name, sizeof(cp_name), cp, flags);
+
+	// Attempt to convert the text to UTF-16.
+	// NOTE: "//IGNORE" sometimes doesn't work, so we won't
+	// check for TEXTCONV_FLAG_CP1252_FALLBACK here.
+	u16string ret;
+	char16_t *wcs = reinterpret_cast<char16_t*>(rp_iconv((char*)str, len*sizeof(*str), cp_name, ICONV_UTF16_ENCODING));
+	if (!wcs /*&& (flags & TEXTCONV_FLAG_CP1252_FALLBACK)*/) {
+		// Try cp1252 fallback.
+		if (cp != 1252) {
+			wcs = reinterpret_cast<char16_t*>(rp_iconv((char*)str, len*sizeof(*str), "CP1252//IGNORE", ICONV_UTF16_ENCODING));
+		}
+		if (!wcs) {
+			// Try Latin-1 fallback.
+			if (cp != CP_LATIN1) {
+				wcs = reinterpret_cast<char16_t*>(rp_iconv((char*)str, len*sizeof(*str), "LATIN1//IGNORE", ICONV_UTF16_ENCODING));
+			}
+		}
+	}
+
+	if (wcs) {
+		ret.assign(wcs);
+		free(wcs);
+
+#ifdef HAVE_ICONV_LIBICONV
+		if (cp == 932) {
+			// libiconv's cp932 maps Shift-JIS 8160 to U+301C. This is expected
+			// behavior for Shift-JIS, but cp932 should map it to U+FF5E.
+			for (auto p = ret.begin(); p != ret.end(); ++p) {
+				if (*p == 0x301C) {
+					// Found a wave dash.
+					*p = (char16_t)0xFF5E;
+				}
+			}
+		}
+#endif /* HAVE_ICONV_LIBICONV */
+	}
+	return ret;
+}
+
+/** Unicode to Unicode conversion functions **/
 
 /**
  * Convert UTF-16LE text to UTF-8.

@@ -47,6 +47,14 @@ class Mst
 		int loadMST(const TCHAR *filename);
 
 		/**
+		 * Load an XML string table.
+		 * @param filename	[in] XML filename.
+		 * @param pVecErrs	[out,opt] Vector of user-readable error messages.
+		 * @return 0 on success; negative POSIX error code or positive TinyXML2 error code on error.
+		 */
+		int loadXML(const TCHAR *filename, std::vector<std::string> *pVecErrs = nullptr);
+
+		/**
 		 * Save the string table as XML.
 		 * @param filename XML filename.
 		 * @return 0 on success; negative POSIX error code or positive TinyXML2 error code on error.

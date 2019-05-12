@@ -189,7 +189,7 @@ string cpN_to_utf8(unsigned int cp, const char *str, int len, unsigned int flags
  * @param flags	[in] Flags. (See TextConv_Flags_e.)
  * @return UTF-16 string.
  */
-static u16string cpN_to_utf16(unsigned int cp, const char *str, int len, unsigned int flags)
+u16string cpN_to_utf16(unsigned int cp, const char *str, int len, unsigned int flags)
 {
 	DWORD dwFlags = 0;
 	if (flags & TEXTCONV_FLAG_CP1252_FALLBACK) {

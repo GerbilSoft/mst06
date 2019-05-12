@@ -59,13 +59,52 @@ typedef enum {
  */
 std::string cpN_to_utf8(unsigned int cp, const char *str, int len, unsigned int flags = 0);
 
+/**
+ * Convert 8-bit text to UTF-16.
+ * WARNING: This function does NOT support NULL-terminated strings!
+ *
+ * The specified code page number will be used.
+ *
+ * @param cp	[in] Code page number.
+ * @param str	[in] 8-bit text.
+ * @param len	[in] Length of str, in bytes.
+ * @param flags	[in] Flags. (See TextConv_Flags_e.)
+ * @return UTF-16 string.
+ */
+std::u16string cpN_to_utf16(unsigned int cp, const char *str, int len, unsigned int flags = 0);
+
 /* UTF-8 to UTF-16 and vice-versa */
+
+/**
+ * Convert UTF-8 text to UTF-16.
+ * WARNING: This function does NOT support NULL-terminated strings!
+ * @param str	[in] UTF-8 text.
+ * @param len	[in] Length of str, in bytes.
+ * @return UTF-16 string.
+ */
+static inline std::u16string utf8_to_utf16(const char *str, size_t len)
+{
+	return cpN_to_utf16(CP_UTF8, str, static_cast<int>(len));
+}
+
+/**
+ * Convert UTF-8 text to UTF-16.
+ * WARNING: This function does NOT support NULL-terminated strings!
+ * @param str UTF-8 string.
+ * @return UTF-16 string.
+ */
+static inline std::u16string utf8_to_utf16(const std::string &str)
+{
+	return cpN_to_utf16(CP_UTF8, str.data(), static_cast<int>(str.size()));
+}
+
+/* Specialized UTF-16 conversion functions */
 
 /**
  * Convert UTF-16LE text to UTF-8.
  * WARNING: This function does NOT support NULL-terminated strings!
  * @param wcs	[in] UTF-16LE text.
- * @param len	[in] Length of wcs, in characters. (-1 for NULL-terminated string)
+ * @param len	[in] Length of wcs, in characters.
  * @return UTF-8 string.
  */
 std::string utf16le_to_utf8(const char16_t *wcs, size_t len);

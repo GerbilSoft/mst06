@@ -57,7 +57,7 @@ Mst::Mst()
  */
 int Mst::loadMST(const TCHAR *filename)
 {
-	if (!filename) {
+	if (!filename || !filename[0]) {
 		return -EINVAL;
 	}
 
@@ -337,13 +337,178 @@ class MstXMLPrinter : public XMLPrinter
 };
 
 /**
+ * Load an XML string table.
+ * @param filename	[in] XML filename.
+ * @param pVecErrs	[out,opt] Vector of user-readable error messages.
+ * @return 0 on success; negative POSIX error code or positive TinyXML2 error code on error.
+ */
+int Mst::loadXML(const TCHAR *filename, std::vector<std::string> *pVecErrs)
+{
+	if (!filename || !filename[0]) {
+		return -EINVAL;
+	}
+
+	// Clear the current string tables.
+	m_name.clear();
+	m_vStrTbl.clear();
+	m_vStrLkup.clear();
+
+	// Open the XML document.
+	FILE *f_xml = _tfopen(filename, _T("r"));
+	if (!f_xml) {
+		// Error opening the XML document.
+		return -errno;
+	}
+
+	// Parse the XML document.
+	XMLDocument xml;
+	int ret = xml.LoadFile(f_xml);
+	if (ret != 0) {
+		// Error parsing the XML document.
+		if (pVecErrs) {
+			const char *const errstr = xml.ErrorStr();
+			if (errstr) {
+				pVecErrs->push_back(errstr);
+			}
+		}
+		return xml.ErrorID();
+	}
+
+	// Get the root element: "mst06"
+	XMLElement *const xml_mst06 = xml.FirstChildElement("mst06");
+	if (!xml_mst06) {
+		// No "mst06" element.
+		if (pVecErrs) {
+			pVecErrs->push_back("\"mst06\" element not found.");
+		}
+		return -EIO;
+	}
+
+	// Get the string table name.
+	const char *const strTblName = xml_mst06->Attribute("name");
+	if (!strTblName) {
+		// No "name" attribute.
+		if (pVecErrs) {
+			pVecErrs->push_back("\"mst06\" element has no \"name\" attribute.");
+		}
+		return -EIO;
+	} else if (!strTblName[0]) {
+		// "name" attribute is empty.
+		if (pVecErrs) {
+			pVecErrs->push_back("\"mst06\" element's \"name\" attribute is empty.");
+		}
+		return -EIO;
+	}
+	m_name = strTblName;
+
+	// Read messages.
+	// NOTE: Need to check for missing message indexes after.
+	XMLElement *xml_msg = xml_mst06->FirstChildElement("message");
+	if (!xml_msg) {
+		// No messages.
+		m_name.clear();
+		if (pVecErrs) {
+			pVecErrs->push_back("\"mst06\" element has no \"message\" elements.");
+		}
+		return -EIO;
+	}
+
+	for (; xml_msg != nullptr; xml_msg = xml_msg->NextSiblingElement("message")) {
+		// Get the attributes.
+		// TODO: Should errors here cause parsing to fail?
+		char buf[256];
+
+		// Index.
+		unsigned int index = 0;
+		XMLError err = xml_msg->QueryUnsignedAttribute("index", &index);
+		switch (err) {
+			case XML_SUCCESS:
+				break;
+			case XML_NO_ATTRIBUTE:
+				if (pVecErrs) {
+					snprintf(buf, sizeof(buf), "Line %d: \"message\" element has no \"index\" attribute.", xml_msg->GetLineNum());
+					pVecErrs->push_back(buf);
+				}
+				break;
+			case XML_WRONG_ATTRIBUTE_TYPE:
+				if (pVecErrs) {
+					snprintf(buf, sizeof(buf), "Line %d: \"message\" element's \"index\" attribute is not an unsigned integer.", xml_msg->GetLineNum());
+					pVecErrs->push_back(buf);
+				}
+				break;
+			default:
+				if (pVecErrs) {
+					snprintf(buf, sizeof(buf), "Line %d: Unknown error.", xml_msg->GetLineNum());
+					pVecErrs->push_back(buf);
+				}
+				break;
+		}
+		if (err != XML_SUCCESS)
+			continue;
+
+		// Message name.
+		const char *const msg_name = xml_msg->Attribute("name");
+		if (!msg_name) {
+			if (pVecErrs) {
+				snprintf(buf, sizeof(buf), "Line %d: \"message\" element has no \"name\" attribute.", xml_msg->GetLineNum());
+				pVecErrs->push_back(buf);
+			}
+			continue;
+		} else if (!msg_name[0]) {
+			if (pVecErrs) {
+				snprintf(buf, sizeof(buf), "Line %d: \"message\" element has an empty \"name\" attribute.", xml_msg->GetLineNum());
+				pVecErrs->push_back(buf);
+			}
+			continue;
+		}
+
+		// Message text.
+		const char *msg_text = xml_msg->GetText();
+		if (!msg_text) {
+			msg_text = "";
+		}
+
+		// Check for a duplicated message.
+		// If found, the original message will be replaced.
+		if (index < m_vStrTbl.size()) {
+			if (!m_vStrTbl[index].first.empty()) {
+				// Found a duplicated message index.
+				if (pVecErrs) {
+					snprintf(buf, sizeof(buf), "Line %d: Duplicate message index %u. This message will supercede the previous message.", xml_msg->GetLineNum(), index);
+					pVecErrs->push_back(buf);
+				}
+
+				// Remove the string from m_vStrLkup.
+				m_vStrLkup.erase(m_vStrTbl[index].first);
+			}
+		}
+
+		// Add the message to the main table.
+		if (index >= m_vStrTbl.size()) {
+			// Need to resize the main table.
+			m_vStrTbl.resize(index+1);
+		}
+		m_vStrTbl[index].first = msg_name;
+		m_vStrTbl[index].second = utf8_to_utf16(msg_text, strlen(msg_text));
+
+		// Add the message to the lookup table.
+		m_vStrLkup.insert(std::make_pair(msg_name, index));
+	}
+
+	// TODO: Check for missing message indexes.
+
+	// Document processed.
+	return 0;
+}
+
+/**
  * Save the string table as XML.
  * @param filename XML filename.
  * @return 0 on success; negative POSIX error code or positive TinyXML2 error code on error.
  */
 int Mst::saveXML(const TCHAR *filename) const
 {
-	if (!filename) {
+	if (!filename || !filename[0]) {
 		return -EINVAL;
 	} else if (m_vStrTbl.empty()) {
 		return -ENODATA;	// TODO: Better error code?
@@ -351,16 +516,16 @@ int Mst::saveXML(const TCHAR *filename) const
 
 	// Create an XML document.
 	XMLDocument xml;
-	XMLDeclaration *xml_decl = xml.NewDeclaration();
+	XMLDeclaration *const xml_decl = xml.NewDeclaration();
 	xml.InsertFirstChild(xml_decl);
-	XMLElement *xml_msgTbl = xml.NewElement("mst06");
-	xml.InsertEndChild(xml_msgTbl);
-	xml_msgTbl->SetAttribute("name", m_name.c_str());
+	XMLElement *const xml_mst06 = xml.NewElement("mst06");
+	xml.InsertEndChild(xml_mst06);
+	xml_mst06->SetAttribute("name", m_name.c_str());
 
 	size_t i = 0;
 	for (auto iter = m_vStrTbl.cbegin(); iter != m_vStrTbl.cend(); ++iter, ++i) {
-		XMLElement *xml_msg = xml.NewElement("message");
-		xml_msgTbl->InsertEndChild(xml_msg);
+		XMLElement *const xml_msg = xml.NewElement("message");
+		xml_mst06->InsertEndChild(xml_msg);
 		xml_msg->SetAttribute("index", static_cast<unsigned int>(i));
 		xml_msg->SetAttribute("name", iter->first.c_str());
 		if (!iter->second.empty()) {
