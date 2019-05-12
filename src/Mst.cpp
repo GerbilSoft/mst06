@@ -521,7 +521,8 @@ int Mst::loadXML(FILE *fp, std::vector<std::string> *pVecErrs)
 			m_vStrTbl.resize(index+1);
 		}
 		m_vStrTbl[index].first = msg_name;
-		m_vStrTbl[index].second = utf8_to_utf16(msg_text, strlen(msg_text));
+		// TODO: utf8_to_utf16() overload that takes `const char*`?
+		m_vStrTbl[index].second = unescape(utf8_to_utf16(msg_text, strlen(msg_text)));
 
 		// Add the message to the lookup table.
 		m_vStrLkup.insert(std::make_pair(msg_name, index));
