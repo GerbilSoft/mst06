@@ -80,6 +80,7 @@ int _tmain(int argc, TCHAR *argv[])
 		// Parse as XML and convert to MST.
 		out_ext = _T(".mst");
 		writeMST = true;
+		// TODO: Print load errors.
 		ret = mst.loadXML(f_in);
 		fclose(f_in);
 	} else if (!memcmp(&buf[0x18], "BINA", 4)) {
