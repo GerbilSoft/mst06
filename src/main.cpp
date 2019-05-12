@@ -53,7 +53,7 @@ int _tmain(int argc, TCHAR *argv[])
 
 	// Open the file and check if it's MST or XML.
 	// TODO: loadMST() overload for FILE*.
-	FILE *f_in = _tfopen(argv[1], "rb");
+	FILE *f_in = _tfopen(argv[1], _T("rb"));
 	if (!f_in) {
 		_ftprintf(stderr, _T("*** ERROR opening %s: %s\n"), argv[1], _tcserror(errno));
 		return EXIT_FAILURE;
