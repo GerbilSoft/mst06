@@ -363,6 +363,7 @@ int Mst::loadXML(const TCHAR *filename, std::vector<std::string> *pVecErrs)
 	// Parse the XML document.
 	XMLDocument xml;
 	int ret = xml.LoadFile(f_xml);
+	fclose(f_xml);
 	if (ret != 0) {
 		// Error parsing the XML document.
 		if (pVecErrs) {
@@ -543,6 +544,7 @@ int Mst::saveXML(const TCHAR *filename) const
 
 	MstXMLPrinter stream(f_xml, false);
 	xml.Print(&stream);
+	fclose(f_xml);
 	return xml.ErrorID();
 }
 
