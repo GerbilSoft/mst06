@@ -140,8 +140,8 @@ int _tmain(int argc, TCHAR *argv[])
 		_tprintf(_T("*** saveXML to %s: %d\n"), out_filename.c_str(), ret);
 	} else if (writeMST) {
 		// Convert to MST.
-		// TODO: Not implemented yet - dump to stdout instead.
-		mst.dump();
+		ret = mst.saveMST(out_filename.c_str());
+		_tprintf(_T("*** saveMST to %s: %d\n"), out_filename.c_str(), ret);
 	}
 	return ret;
 }

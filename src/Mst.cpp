@@ -24,6 +24,7 @@
 #include <stdint.h>
 
 // C includes. (C++ namespace)
+#include <cassert>
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
@@ -535,6 +536,257 @@ int Mst::loadXML(FILE *fp, std::vector<std::string> *pVecErrs)
 }
 
 /**
+ * Save the string table as MST.
+ * @param filename MST filename.
+ * @return 0 on success; negative POSIX error code on error.
+ */
+int Mst::saveMST(const TCHAR *filename) const
+{
+	if (!filename || !filename[0]) {
+		return -EINVAL;
+	} else if (m_vStrTbl.empty()) {
+		return -ENODATA;	// TODO: Better error code?
+	}
+
+	FILE *f_mst = _tfopen(filename, _T("wb"));
+	if (!f_mst) {
+		// Error opening the MST file.
+		return -errno;
+	}
+	int ret = saveMST(f_mst);
+	fclose(f_mst);
+	return ret;
+}
+
+/**
+ * Save the string table as XML.
+ * @param fp XML file.
+ * @return 0 on success; negative POSIX error code on error.
+ */
+int Mst::saveMST(FILE *fp) const
+{
+	// BEFORE MST COMMIT: Check here!
+	if (m_vStrTbl.empty()) {
+		return -ENODATA;	// TODO: Better error code?
+	}
+
+	// MST header.
+	// NOTE: Parts of the header can't be filled in until
+	// the rest of the string table is handled.
+	MST_Header mst_header;
+	memset(&mst_header, 0, sizeof(mst_header));
+	mst_header.version = '1';
+	mst_header.endianness = 'B';	// TODO: Add support for writing little-endian files?
+	mst_header.bina_magic = cpu_to_be32(BINA_MAGIC);
+
+	// WTXT header.
+	// NOTE: Most of this header is filled out later.
+	WTXT_Header wtxt_header;
+	wtxt_header.magic = cpu_to_be32(WTXT_MAGIC);
+	wtxt_header.msg_tbl_name_offset = 0;
+	wtxt_header.msg_tbl_count = 0;
+
+	// Data vectors.
+	// NOTE: vOffsetTbl will have offsets relative to the
+	// beginning of each vMsgNames and vMsgText in the first run.
+	// The base addresses will be added in the second run.
+	// vOffsetTblType will be used to determine the base address.
+	vector<uint32_t> vOffsetTbl;	// Primary offset table.
+	vector<uint8_t> vOffsetTblType;	// Type of entry for each offset: 0=zero, 1=text, 2=name
+	vector<char16_t> vMsgText;	// Message text.
+	vector<char> vMsgNames;		// Message names.
+	vector<char> vDiffOffTbl;	// Differential offset table.
+
+	// TODO: Better size reservations.
+	vOffsetTbl.reserve(m_vStrTbl.size() * 3);
+	vOffsetTblType.reserve(m_vStrTbl.size() * 3);
+	vMsgText.reserve(m_vStrTbl.size() * 32);
+	vMsgNames.reserve(m_vStrTbl.size() * 32);
+	vDiffOffTbl.reserve((m_vStrTbl.size() + 3) & ~(size_t)(3U));
+
+	// For strings with both name and text, three offsets will be stored:
+	// - Name offset
+	// - Text offset
+	// - Zero
+
+	// For strings with only name, only the name offset will be stored.
+	// TODO: Compare to MST files and see if maybe a zero is stored too?
+
+	bool hasAZero = false;	// If true, skip 8 bytes for the next offset.
+
+	// String table name.
+	// NOTE: While this is part of the names table, the offset is stored
+	// in the WTXT header, *not* the offset table, and it's not included
+	// in the differential offset table.
+	{
+		if (!m_name.empty()) {
+			const size_t name_size = m_name.size();
+			// +1 for NULL terminator.
+			vMsgNames.resize(name_size + 1);
+			memcpy(vMsgNames.data(), m_name.c_str(), name_size+1);
+		} else {
+			// Empty string table name...
+			// TODO: Report a warning.
+			const char empty_name[] = "mst06_generic_name";
+			vMsgNames.resize(sizeof(empty_name));
+			memcpy(vMsgNames.data(), empty_name, sizeof(empty_name));
+		}
+
+		// Skip 4 bytes from the beginning of the WTXT header.
+		vDiffOffTbl.push_back('A');
+
+		// Next offset will skip 8 bytes to skip over the string count.
+		hasAZero = true;
+	}
+
+	size_t i = 0;
+	for (auto iter = m_vStrTbl.cbegin(); iter != m_vStrTbl.cend(); ++iter, ++i) {
+		const size_t name_pos = vMsgNames.size();
+		const size_t text_pos = vMsgText.size();
+
+		// Copy the message name.
+		if (!iter->first.empty()) {
+			// Copy the message name into the vector.
+			// FIXME: Convert to Shift-JIS first.
+			const size_t name_size = iter->first.size();
+			// +1 for NULL terminator.
+			vMsgNames.resize(name_pos + name_size + 1);
+			memcpy(&vMsgNames[name_pos], iter->first.c_str(), name_size+1);
+		} else {
+			// Empty message name...
+			// TODO: Report a warning.
+			char buf[64];
+			int len = snprintf(buf, sizeof(buf), "XXX_MSG_%zu", i);
+			// +1 for NULL terminator.
+			vMsgNames.resize(name_pos + len + 1);
+			memcpy(&vMsgNames[name_pos], buf, len+1);
+		}
+		vOffsetTbl.push_back(name_pos);
+		vOffsetTblType.push_back(2);	// Name
+		// Difference of 4 or 8 bytes, depending on whether or not
+		// a zero offset was added previously.
+		vDiffOffTbl.push_back(hasAZero ? 'B' : 'A');
+		hasAZero = false;
+
+		// Copy the message text.
+		// TODO: Add support for writing little-endian files?
+		if (!iter->second.empty()) {
+			// Copy the message text into the vector.
+#if SYS_BYTEORDER == SYS_BIG_ENDIAN
+			// Host byteorder is big-endian. No conversion is necessary.
+			const u16string &msg_text = iter->second;
+#else /* SYS_BYTEORDER == SYS_LIL_ENDIAN */
+			// Host byteorder is little-endian. Convert to big-endian.
+			const u16string msg_text = utf16_bswap(iter->second.data(), iter->second.size());
+#endif
+
+			const size_t msg_size = msg_text.size();
+			vMsgText.resize(text_pos + msg_size + 1);
+			// +1 for NULL terminator.
+			memcpy(&vMsgText[text_pos], msg_text.c_str(), (msg_size+1) * sizeof(char16_t));
+
+			// NOTE: Text offset must be mutliplied by sizeof(char16_t),
+			// since vMsgText is char16_t, but vOffsetTbl uses bytes.
+			vOffsetTbl.push_back(text_pos * sizeof(char16_t));
+			vOffsetTbl.push_back(0);	// Zero entry.
+			vOffsetTblType.push_back(1);	// Text
+			vOffsetTblType.push_back(0);	// Zero
+
+			// Difference of 4 bytes from the previous offset,
+			// and we now have a zero offset.
+			vDiffOffTbl.push_back('A');
+			hasAZero = true;
+		}
+	}
+
+	// Determine the message table base addresses.
+	const uint32_t text_tbl_base = static_cast<uint32_t>(sizeof(wtxt_header) + (vOffsetTbl.size() * sizeof(uint32_t)));
+	const uint32_t name_tbl_base = static_cast<uint32_t>(text_tbl_base + (vMsgText.size() * sizeof(char16_t)));
+
+	// Differential offset table must be DWORD-aligned for both
+	// starting offset and length.
+	uint32_t doff_tbl_offset = static_cast<uint32_t>(name_tbl_base + vMsgNames.size());
+	if (doff_tbl_offset & 3) {
+		// Need to align the starting offset to a multiple of 4.
+		vMsgNames.resize(vMsgNames.size() + (4 - (doff_tbl_offset & 3)));
+		doff_tbl_offset = static_cast<uint32_t>(name_tbl_base + vMsgNames.size());
+	}
+	uint32_t doff_tbl_length = static_cast<uint32_t>(vDiffOffTbl.size());
+	if (doff_tbl_length & 3) {
+		// Need to align the size to a multiple of 4.
+		vDiffOffTbl.resize((vDiffOffTbl.size() + 3) & ~(size_t)(3U));
+		doff_tbl_length = static_cast<uint32_t>(vDiffOffTbl.size());
+	}
+
+	// Update WTXT_Header.
+	wtxt_header.msg_tbl_name_offset = cpu_to_be32(name_tbl_base);
+	// TODO: Make sure the offset table's size is a multiple of 3 uint32_t's. (12 bytes)
+	wtxt_header.msg_tbl_count = cpu_to_be32(vOffsetTbl.size() / 3);
+
+	// Update the offset table base addresses.
+	i = 0;
+	for (auto iter = vOffsetTbl.begin(); iter != vOffsetTbl.end(); ++iter, ++i) {
+		switch (vOffsetTblType[i]) {
+			case 0:
+				// Zero entry.
+				break;
+			case 1:
+				// Text entry.
+				*iter = cpu_to_be32(*iter + text_tbl_base);
+				break;
+			case 2:
+				// Name entry.
+				*iter = cpu_to_be32(*iter + name_tbl_base);
+				break;
+			default:
+				// Invalid entry.
+				assert(!"Unexpected offset table type.");
+				break;
+		}
+	}
+
+	// Update the MST header.
+	mst_header.file_size = cpu_to_be32(sizeof(mst_header) + doff_tbl_offset + doff_tbl_length);
+	mst_header.doff_tbl_offset = cpu_to_be32(doff_tbl_offset);
+	mst_header.doff_tbl_length = cpu_to_be32(doff_tbl_length);
+
+	// Write everything to the file.
+	errno = 0;
+	size_t size = fwrite(&mst_header, 1, sizeof(mst_header), fp);
+	if (size != sizeof(mst_header)) {
+		return (errno ? -errno : -EIO);
+	}
+	errno = 0;
+	size = fwrite(&wtxt_header, 1, sizeof(wtxt_header), fp);
+	if (size != sizeof(wtxt_header)) {
+		return (errno ? -errno : -EIO);
+	}
+	errno = 0;
+	size = fwrite(vOffsetTbl.data(), sizeof(uint32_t), vOffsetTbl.size(), fp);
+	if (size != vOffsetTbl.size()) {
+		return (errno ? -errno : -EIO);
+	}
+	errno = 0;
+	size = fwrite(vMsgText.data(), sizeof(char16_t), vMsgText.size(), fp);
+	if (size != vMsgText.size()) {
+		return (errno ? -errno : -EIO);
+	}
+	errno = 0;
+	size = fwrite(vMsgNames.data(), 1, vMsgNames.size(), fp);
+	if (size != vMsgNames.size()) {
+		return (errno ? -errno : -EIO);
+	}
+	errno = 0;
+	size = fwrite(vDiffOffTbl.data(), 1, vDiffOffTbl.size(), fp);
+	if (size != vDiffOffTbl.size()) {
+		return (errno ? -errno : -EIO);
+	}
+
+	// We're done here.
+	return 0;
+}
+
+/**
  * Save the string table as XML.
  * @param filename XML filename.
  * @return 0 on success; negative POSIX error code or positive TinyXML2 error code on error.
@@ -564,6 +816,11 @@ int Mst::saveXML(const TCHAR *filename) const
  */
 int Mst::saveXML(FILE *fp) const
 {
+	// BEFORE MST COMMIT: Check here!
+	if (m_vStrTbl.empty()) {
+		return -ENODATA;	// TODO: Better error code?
+	}
+
 	// Create an XML document.
 	XMLDocument xml;
 	XMLDeclaration *const xml_decl = xml.NewDeclaration();

@@ -74,6 +74,20 @@ class Mst
 		int loadXML(FILE *fp, std::vector<std::string> *pVecErrs = nullptr);
 
 		/**
+		 * Save the string table as MST.
+		 * @param filename MST filename.
+		 * @return 0 on success; negative POSIX error code on error.
+		 */
+		int saveMST(const TCHAR *filename) const;
+
+		/**
+		 * Save the string table as XML.
+		 * @param fp XML file.
+		 * @return 0 on success; negative POSIX error code on error.
+		 */
+		int saveMST(FILE *fp) const;
+
+		/**
 		 * Save the string table as XML.
 		 * @param filename XML filename.
 		 * @return 0 on success; negative POSIX error code or positive TinyXML2 error code on error.
