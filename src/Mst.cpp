@@ -96,52 +96,52 @@ int Mst::loadMST(FILE *fp)
 	m_vStrLkup.clear();
 
 	// Read the MST header.
-	MST_Header mst;
-	size_t size = fread(&mst, 1, sizeof(mst), fp);
-	if (size != sizeof(mst)) {
+	MST_Header mst_header;
+	size_t size = fread(&mst_header, 1, sizeof(mst_header), fp);
+	if (size != sizeof(mst_header)) {
 		// Read error.
 		// TODO: Store more comprehensive error information.
 		return -EIO;
 	}
 
 	// Check the BINA magic number.
-	if (mst.bina_magic != cpu_to_be32(BINA_MAGIC)) {
+	if (mst_header.bina_magic != cpu_to_be32(BINA_MAGIC)) {
 		// TODO: Store more comprehensive error information.
 		return -EIO;
 	}
 
 	// Check version number and endianness.
-	if (mst.version != '1' || (mst.endianness != 'B' && mst.endianness != 'L')) {
+	if (mst_header.version != '1' || (mst_header.endianness != 'B' && mst_header.endianness != 'L')) {
 		// Unsupported version and/or invalid endianness.
 		// TODO: Store more comprehensive error information.
 		return -EIO;
 	}
 	m_version = 1;
-	m_isBigEndian = (mst.endianness == 'B');
+	m_isBigEndian = (mst_header.endianness == 'B');
 
 	if (m_isBigEndian) {
-		mst.file_size		= be32_to_cpu(mst.file_size);
-		mst.doff_tbl_offset	= be32_to_cpu(mst.doff_tbl_offset);
-		mst.doff_tbl_length	= be32_to_cpu(mst.doff_tbl_length);
+		mst_header.file_size		= be32_to_cpu(mst_header.file_size);
+		mst_header.doff_tbl_offset	= be32_to_cpu(mst_header.doff_tbl_offset);
+		mst_header.doff_tbl_length	= be32_to_cpu(mst_header.doff_tbl_length);
 	} else {
-		mst.file_size		= le32_to_cpu(mst.file_size);
-		mst.doff_tbl_offset	= le32_to_cpu(mst.doff_tbl_offset);
-		mst.doff_tbl_length	= le32_to_cpu(mst.doff_tbl_length);
+		mst_header.file_size		= le32_to_cpu(mst_header.file_size);
+		mst_header.doff_tbl_offset	= le32_to_cpu(mst_header.doff_tbl_offset);
+		mst_header.doff_tbl_length	= le32_to_cpu(mst_header.doff_tbl_length);
 	}
 
 	// Verify file size.
-	if (mst.file_size < sizeof(MST_Header) + sizeof(WTXT_Header) + sizeof(WTXT_MsgPointer)) {
+	if (mst_header.file_size < sizeof(MST_Header) + sizeof(WTXT_Header) + sizeof(WTXT_MsgPointer)) {
 		// Sanity check: File is too small.
 		// TODO: Store more comprehensive error information.
 		return -EIO;
-	} else if (mst.file_size > 16U*1024*1024) {
+	} else if (mst_header.file_size > 16U*1024*1024) {
 		// Sanity check: Must be 16 MB or less.
 		// TODO: Store more comprehensive error information.
 		return -EIO;
 	}
 
 	// Verify offset table length and size.
-	if ((uint64_t)sizeof(MST_Header) + (uint64_t)mst.doff_tbl_offset + (uint64_t)mst.doff_tbl_length > mst.file_size) {
+	if ((uint64_t)sizeof(MST_Header) + (uint64_t)mst_header.doff_tbl_offset + (uint64_t)mst_header.doff_tbl_length > mst_header.file_size) {
 		// Offset table error.
 		// TODO: Store more comprehensive error information.
 		return -EIO;
@@ -150,12 +150,12 @@ int Mst::loadMST(FILE *fp)
 	// Read the entire file.
 	// NOTE: Using a relative seek in case the file pointer was set by
 	// the caller to not be at the beginning of the file.
-	unique_ptr<uint8_t[]> mst_data(new uint8_t[mst.file_size]);
-	fseeko(fp, -(off_t)(sizeof(mst)), SEEK_CUR);
+	unique_ptr<uint8_t[]> mst_data(new uint8_t[mst_header.file_size]);
+	fseeko(fp, -(off_t)(sizeof(mst_header)), SEEK_CUR);
 	errno = 0;
-	size = fread(mst_data.get(), 1, mst.file_size, fp);
+	size = fread(mst_data.get(), 1, mst_header.file_size, fp);
 	err = errno;
-	if (size != mst.file_size) {
+	if (size != mst_header.file_size) {
 		// Short read.
 		// TODO: Store more comprehensive error information.
 		if (err != 0) {
@@ -165,17 +165,17 @@ int Mst::loadMST(FILE *fp)
 	}
 
 	// Get pointers.
-	const WTXT_Header *const pWtxt = reinterpret_cast<const WTXT_Header*>(&mst_data[sizeof(mst)]);
-	const uint8_t *pDOffTbl = &mst_data[sizeof(mst) + mst.doff_tbl_offset];
-	const uint8_t *const pDOffTblEnd = pDOffTbl + mst.doff_tbl_length;
+	const WTXT_Header *const pWtxt = reinterpret_cast<const WTXT_Header*>(&mst_data[sizeof(mst_header)]);
+	const uint8_t *pDOffTbl = &mst_data[sizeof(mst_header) + mst_header.doff_tbl_offset];
+	const uint8_t *const pDOffTblEnd = pDOffTbl + mst_header.doff_tbl_length;
 
 	// Calculate the offsets for each message.
 	// Reference: https://info.sonicretro.org/SCHG:Sonic_Forces/Formats/BINA
 
 	// Differential offset table.
 	// The offset table has values that point into the message offset table.
-	const uint8_t *pDiffTbl = &mst_data[sizeof(mst)];
-	const uint8_t *const pDiffTblEnd = &mst_data[mst.file_size];
+	const uint8_t *pDiffTbl = &mst_data[sizeof(mst_header)];
+	const uint8_t *const pDiffTblEnd = &mst_data[mst_header.file_size];
 
 	// Use the differential offset table to get the
 	// actual message offsets.
@@ -255,7 +255,7 @@ int Mst::loadMST(FILE *fp)
 
 	// NOTE: First string is the string table name.
 	// Get that one first.
-	pDiffTbl = &mst_data[sizeof(mst)];
+	pDiffTbl = &mst_data[sizeof(mst_header)];
 	do {
 		const char *const pMsgName = reinterpret_cast<const char*>(&pDiffTbl[vMsgOffsets[0]]);
 		if (pMsgName >= reinterpret_cast<const char*>(pDiffTblEnd)) {
