@@ -575,8 +575,8 @@ int Mst::saveMST(FILE *fp) const
 	// the rest of the string table is handled.
 	MST_Header mst_header;
 	memset(&mst_header, 0, sizeof(mst_header));
-	mst_header.version = '1';
-	mst_header.endianness = 'B';	// TODO: Add support for writing little-endian files?
+	mst_header.version = m_version;
+	mst_header.endianness = (m_isBigEndian ? 'B' : 'L');
 	mst_header.bina_magic = cpu_to_be32(BINA_MAGIC);
 
 	// WTXT header.
@@ -639,6 +639,10 @@ int Mst::saveMST(FILE *fp) const
 		hasAZero = true;
 	}
 
+	// Host endianness.
+	static const bool hostIsBigEndian = (SYS_BYTEORDER == SYS_BIG_ENDIAN);
+	const bool hostMatchesFileEndianness = (hostIsBigEndian == m_isBigEndian);
+
 	size_t i = 0;
 	for (auto iter = m_vStrTbl.cbegin(); iter != m_vStrTbl.cend(); ++iter, ++i) {
 		const size_t name_pos = vMsgNames.size();
@@ -672,13 +676,17 @@ int Mst::saveMST(FILE *fp) const
 		// TODO: Add support for writing little-endian files?
 		if (!iter->second.empty()) {
 			// Copy the message text into the vector.
-#if SYS_BYTEORDER == SYS_BIG_ENDIAN
-			// Host byteorder is big-endian. No conversion is necessary.
-			const u16string &msg_text = iter->second;
-#else /* SYS_BYTEORDER == SYS_LIL_ENDIAN */
-			// Host byteorder is little-endian. Convert to big-endian.
-			const u16string msg_text = utf16_bswap(iter->second.data(), iter->second.size());
-#endif
+			u16string msg_text;
+			if (hostMatchesFileEndianness) {
+				// Host endianness matches file endianness.
+				// No conversion is necessary.
+				// TODO: Can we eliminate this copy?
+				msg_text = iter->second;
+			} else {
+				// Host byteorder does not match file endianness.
+				// Swap it.
+				msg_text = utf16_bswap(iter->second.data(), iter->second.size());
+			}
 
 			const size_t msg_size = msg_text.size();
 			vMsgText.resize(text_pos + msg_size + 1);
@@ -732,23 +740,36 @@ int Mst::saveMST(FILE *fp) const
 				break;
 			case 1:
 				// Text entry.
-				*iter = cpu_to_be32(*iter + text_tbl_base);
+				*iter += text_tbl_base;
 				break;
 			case 2:
 				// Name entry.
-				*iter = cpu_to_be32(*iter + name_tbl_base);
+				*iter += name_tbl_base;
 				break;
 			default:
 				// Invalid entry.
 				assert(!"Unexpected offset table type.");
 				break;
 		}
+
+		if (!hostMatchesFileEndianness) {
+			// Byteswap the offset.
+			*iter = __swab32(*iter);
+		}
 	}
 
 	// Update the MST header.
-	mst_header.file_size = cpu_to_be32(sizeof(mst_header) + doff_tbl_offset + doff_tbl_length);
-	mst_header.doff_tbl_offset = cpu_to_be32(doff_tbl_offset);
-	mst_header.doff_tbl_length = cpu_to_be32(doff_tbl_length);
+	if (hostMatchesFileEndianness) {
+		// Endianness matches. No conversion is necessary.
+		mst_header.file_size = sizeof(mst_header) + doff_tbl_offset + doff_tbl_length;
+		mst_header.doff_tbl_offset = doff_tbl_offset;
+		mst_header.doff_tbl_length = doff_tbl_length;
+	} else {
+		// Endianness does not match. Byteswap!
+		mst_header.file_size = __swab32(sizeof(mst_header) + doff_tbl_offset + doff_tbl_length);
+		mst_header.doff_tbl_offset = __swab32(doff_tbl_offset);
+		mst_header.doff_tbl_length = __swab32(doff_tbl_length);
+	}
 
 	// Write everything to the file.
 	errno = 0;
