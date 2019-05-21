@@ -95,6 +95,8 @@ int Mst::loadMST(FILE *fp)
 	m_name.clear();
 	m_vStrTbl.clear();
 	m_vStrLkup.clear();
+	m_version = '1';
+	m_isBigEndian = true;
 
 	// Read the MST header.
 	MST_Header mst_header;
@@ -392,6 +394,8 @@ int Mst::loadXML(FILE *fp, std::vector<std::string> *pVecErrs)
 	m_name.clear();
 	m_vStrTbl.clear();
 	m_vStrLkup.clear();
+	m_version = '1';
+	m_isBigEndian = true;
 
 	// Parse the XML document.
 	XMLDocument xml;
@@ -415,6 +419,35 @@ int Mst::loadXML(FILE *fp, std::vector<std::string> *pVecErrs)
 			pVecErrs->push_back("\"mst06\" element not found.");
 		}
 		return -EIO;
+	}
+
+	// Check if mst_version and endianness are set.
+	// If they are, use them. If not, default to "1B".
+	const char *const mst_version = xml_mst06->Attribute("mst_version");
+	if (mst_version) {
+		// If not "1", show a warning.
+		if (strcmp(mst_version, "1") != 0) {
+			if (pVecErrs) {
+				pVecErrs->push_back("\"mst06\" mst_version is not \"1\". Continuing anyway.");
+			}
+		}
+		m_version = mst_version[0];
+	}
+	const char *const mst_endianness = xml_mst06->Attribute("endianness");
+	if (mst_endianness) {
+		// If not "B" or "L", show a warning and assume "B".
+		if ((mst_endianness[0] == 'B' || mst_endianness[0] == 'L') && mst_endianness[1] == '\0') {
+			// Valid endianness.
+			m_isBigEndian = (mst_endianness[0] == 'B');
+		} else {
+			// Endianness is not valid.
+			// Default to big endian.
+			if (pVecErrs) {
+				char buf[256];
+				snprintf(buf, sizeof(buf), "\"mst06\" endianness \"%s\" not recognized. Assuming big-endian.", mst_endianness);
+				pVecErrs->push_back(buf);
+			}
+		}
 	}
 
 	// Get the string table name.
@@ -846,9 +879,13 @@ int Mst::saveXML(FILE *fp) const
 	XMLDocument xml;
 	XMLDeclaration *const xml_decl = xml.NewDeclaration();
 	xml.InsertFirstChild(xml_decl);
+
 	XMLElement *const xml_mst06 = xml.NewElement("mst06");
 	xml.InsertEndChild(xml_mst06);
 	xml_mst06->SetAttribute("name", m_name.c_str());
+	const char verstr[2] = {m_version, '\0'};
+	xml_mst06->SetAttribute("mst_version", verstr);
+	xml_mst06->SetAttribute("endianness", (m_isBigEndian ? "B" : "L"));
 
 	size_t i = 0;
 	for (auto iter = m_vStrTbl.cbegin(); iter != m_vStrTbl.cend(); ++iter, ++i) {
