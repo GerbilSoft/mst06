@@ -575,7 +575,7 @@ int Mst::saveMST(FILE *fp) const
 	// the rest of the string table is handled.
 	MST_Header mst_header;
 	memset(&mst_header, 0, sizeof(mst_header));
-	mst_header.version = m_version;
+	mst_header.version = m_version + '@';
 	mst_header.endianness = (m_isBigEndian ? 'B' : 'L');
 	mst_header.bina_magic = cpu_to_be32(BINA_MAGIC);
 
