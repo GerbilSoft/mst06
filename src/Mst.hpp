@@ -215,7 +215,7 @@ class Mst
 
 	private:
 		// MST information.
-		uint8_t m_version;	// MST version number.
+		char m_version;		// MST version number. ('1')
 		bool m_isBigEndian;	// True if this file is big-endian.
 
 		// String table name. (UTF-8)
