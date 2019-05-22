@@ -701,7 +701,8 @@ int Mst::saveMST(FILE *fp) const
 			vMsgNames.resize(name_pos + len + 1);
 			memcpy(&vMsgNames[name_pos], buf, len+1);
 		}
-		vOffsetTbl.push_back(name_pos);
+		assert(name_pos <= 16U*1024*1024);
+		vOffsetTbl.push_back(static_cast<uint32_t>(name_pos));
 		vOffsetTblType.push_back(2);	// Name
 		// Difference of 4 or 8 bytes, depending on whether or not
 		// a zero offset was added previously.
@@ -731,7 +732,8 @@ int Mst::saveMST(FILE *fp) const
 
 			// NOTE: Text offset must be mutliplied by sizeof(char16_t),
 			// since vMsgText is char16_t, but vOffsetTbl uses bytes.
-			vOffsetTbl.push_back(text_pos * sizeof(char16_t));
+			assert(text_pos <= 16U*1024*1024);
+			vOffsetTbl.push_back(static_cast<uint32_t>(text_pos * sizeof(char16_t)));
 			vOffsetTbl.push_back(0);	// Zero entry.
 			vOffsetTblType.push_back(1);	// Text
 			vOffsetTblType.push_back(0);	// Zero
@@ -765,7 +767,8 @@ int Mst::saveMST(FILE *fp) const
 	// Update WTXT_Header.
 	wtxt_header.msg_tbl_name_offset = cpu_to_be32(name_tbl_base);
 	// TODO: Make sure the offset table's size is a multiple of 3 uint32_t's. (12 bytes)
-	wtxt_header.msg_tbl_count = cpu_to_be32(vOffsetTbl.size() / 3);
+	const uint32_t msg_tbl_count = static_cast<uint32_t>(vOffsetTbl.size() / 3);
+	wtxt_header.msg_tbl_count = cpu_to_be32(msg_tbl_count);
 
 	// Update the offset table base addresses.
 	i = 0;
