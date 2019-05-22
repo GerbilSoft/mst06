@@ -232,7 +232,7 @@ u16string cpN_to_utf16(unsigned int cp, const char *str, int len, unsigned int f
  * @param len	[in] Length of str, in bytes.
  * @return 8-bit text.
  */
-static string utf8_to_cpN(unsigned int cp, const char *str, int len)
+string utf8_to_cpN(unsigned int cp, const char *str, int len)
 {
 	// Convert from UTF-8 to UTF-16.
 	string ret;

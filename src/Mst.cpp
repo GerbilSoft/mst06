@@ -683,12 +683,15 @@ int Mst::saveMST(FILE *fp) const
 
 		// Copy the message name.
 		if (!iter->first.empty()) {
+			// Convert to Shift-JIS first.
+			// TODO: Show warnings for strings with characters that
+			// can't be converted to Shift-JIS?
+			const string sjis_str = utf8_to_cpN(932, iter->first.data(), (int)iter->first.size());
 			// Copy the message name into the vector.
-			// FIXME: Convert to Shift-JIS first.
-			const size_t name_size = iter->first.size();
+			const size_t name_size = sjis_str.size();
 			// +1 for NULL terminator.
 			vMsgNames.resize(name_pos + name_size + 1);
-			memcpy(&vMsgNames[name_pos], iter->first.c_str(), name_size+1);
+			memcpy(&vMsgNames[name_pos], sjis_str.c_str(), name_size+1);
 		} else {
 			// Empty message name...
 			// TODO: Report a warning.

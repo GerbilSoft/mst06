@@ -73,6 +73,20 @@ std::string cpN_to_utf8(unsigned int cp, const char *str, int len, unsigned int 
  */
 std::u16string cpN_to_utf16(unsigned int cp, const char *str, int len, unsigned int flags = 0);
 
+/**
+ * Convert UTF-8 to 8-bit text.
+ * WARNING: This function does NOT support NULL-terminated strings!
+ *
+ * The specified code page number will be used.
+ * Invalid characters will be ignored.
+ *
+ * @param cp	[in] Code page number.
+ * @param str	[in] UTF-8 text.
+ * @param len	[in] Length of str, in bytes.
+ * @return 8-bit text.
+ */
+std::string utf8_to_cpN(unsigned int cp, const char *str, int len);
+
 /* UTF-8 to UTF-16 and vice-versa */
 
 /**
