@@ -1143,9 +1143,23 @@ string Mst::escapeDiffOffTbl(const uint8_t *diffTbl, size_t len)
 	for (; len > 0; diffTbl++, len--) {
 		if (*diffTbl < 0x20 || *diffTbl >= 0x7F) {
 			// Escape the character.
-			char buf[8];
-			snprintf(buf, sizeof(buf), "\\x%02X", *diffTbl);
-			ret += buf;
+			switch (*diffTbl) {
+				case '\\':
+					ret += "\\";
+					break;
+				case '\n':
+					ret += "\\n";
+					break;
+				case '\f':
+					ret += "\\r";
+					break;
+				default: {
+					char buf[8];
+					snprintf(buf, sizeof(buf), "\\x%02X", *diffTbl);
+					ret += buf;
+					break;
+				}
+			}
 		} else {
 			// Use the character as-is.
 			ret += *diffTbl;
