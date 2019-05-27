@@ -201,6 +201,14 @@ class Mst
 		 */
 		static std::u16string unescape(const std::u16string &str);
 
+		/**
+		 * Format a differential offset table as an XML-compatible string.
+		 * @param diffTbl Differential offset table.
+		 * @param len Length.
+		 * @return XML-compatible string.
+		 */
+		static std::string escapeDiffOffTbl(const uint8_t *diffTbl, size_t len);
+
 	private:
 		// MST information.
 		char m_version;		// MST version number. ('1')
@@ -208,7 +216,7 @@ class Mst
 
 		// String table name. (UTF-8)
 		std::string m_name;
-		
+
 		// Main string table.
 		// - Index: String index.
 		// - First: String name. (UTF-8)
@@ -219,6 +227,12 @@ class Mst
 		// - Key: String name. (UTF-8)
 		// - Value: String index.
 		std::unordered_map<std::string, size_t> m_vStrLkup;
+
+		// Differential offset table.
+		// NOTE: This is loaded from the original MST and/or converted XML.
+		// Generating a "new" offset table that "looks" right doesn't
+		// necessarily work in-game, and the reasoning is unknown.
+		std::vector<uint8_t> m_vDiffOffTbl;
 };
 
 #endif /* __MST06_MST_HPP__ */

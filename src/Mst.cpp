@@ -83,6 +83,7 @@ int Mst::loadMST(FILE *fp)
 	m_name.clear();
 	m_vStrTbl.clear();
 	m_vStrLkup.clear();
+	m_vDiffOffTbl.clear();
 	m_version = '1';
 	m_isBigEndian = true;
 
@@ -157,25 +158,28 @@ int Mst::loadMST(FILE *fp)
 
 	// Get pointers.
 	const WTXT_Header *const pWtxt = reinterpret_cast<const WTXT_Header*>(&mst_data[sizeof(mst_header)]);
-	const uint8_t *pDOffTbl = &mst_data[sizeof(mst_header) + mst_header.doff_tbl_offset];
-	const uint8_t *const pDOffTblEnd = pDOffTbl + mst_header.doff_tbl_length;
+	const uint8_t *pDiffOffTbl = &mst_data[sizeof(mst_header) + mst_header.doff_tbl_offset];
+	const uint8_t *const pDiffOffTblEnd = pDiffOffTbl + mst_header.doff_tbl_length;
+	// Keep a copy of the differential offset table for later.
+	m_vDiffOffTbl.resize(pDiffOffTblEnd - pDiffOffTbl);
+	memcpy(m_vDiffOffTbl.data(), pDiffOffTbl, pDiffOffTblEnd - pDiffOffTbl);
 
 	// Calculate the offsets for each message.
 	// Reference: https://info.sonicretro.org/SCHG:Sonic_Forces/Formats/BINA
 
-	// Differential offset table.
+	// Offset table.
 	// The offset table has values that point into the message offset table.
-	const uint8_t *pDiffTbl = &mst_data[sizeof(mst_header)];
-	const uint8_t *const pDiffTblEnd = &mst_data[mst_header.file_size];
+	const uint8_t *pOffTbl = &mst_data[sizeof(mst_header)];
+	const uint8_t *const pOffTblEnd = &mst_data[mst_header.file_size];
 
 	// Use the differential offset table to get the
 	// actual message offsets.
 	vector<uint32_t> vMsgOffsets;
 	bool doneOffsets = false;
-	for (; pDOffTbl < pDOffTblEnd; pDOffTbl++) {
+	for (; pDiffOffTbl < pDiffOffTblEnd; pDiffOffTbl++) {
 		// High two bits of this byte indicate how long the offset is.
 		uint32_t offset_diff = 0;
-		switch (*pDOffTbl >> 6) {
+		switch (*pDiffOffTbl >> 6) {
 			case 0:
 				// 0 bits long. End of offset table.
 				doneOffsets = true;
@@ -183,48 +187,48 @@ int Mst::loadMST(FILE *fp)
 			case 1:
 				// 6 bits long.
 				// Take low 6 bits of this byte and left-shift by 2.
-				offset_diff = (pDOffTbl[0] & 0x3F) << 2;
+				offset_diff = (pDiffOffTbl[0] & 0x3F) << 2;
 				break;
 
 			// TODO: Verify this. ('06 doesn't use this; Forces might.)
 			case 2:
 				// 14 bits long.
 				// Offset difference is stored in 2 bytes.
-				if (pDOffTbl + 2 >= pDOffTblEnd) {
+				if (pDiffOffTbl + 2 >= pDiffOffTblEnd) {
 					// Out of bounds!
 					// TODO: Store more comprehensive error information.
 					doneOffsets = true;
 					break;
 				}
-				offset_diff = ((pDOffTbl[0] & 0x3F) << 10) |
-				               (pDOffTbl[1] << 2);
-				pDOffTbl++;
+				offset_diff = ((pDiffOffTbl[0] & 0x3F) << 10) |
+				               (pDiffOffTbl[1] << 2);
+				pDiffOffTbl++;
 				break;
 
 			// TODO: Verify this. ('06 doesn't use this; Forces might.)
 			case 3:
 				// 30 bits long.
 				// Offset difference is stored in 4 bytes.
-				if (pDOffTbl + 4 >= pDOffTblEnd) {
+				if (pDiffOffTbl + 4 >= pDiffOffTblEnd) {
 					// Out of bounds!
 					// TODO: Store more comprehensive error information.
 					doneOffsets = true;
 					break;
 				}
-				offset_diff = ((pDOffTbl[0] & 0x3F) << 26) |
-				               (pDOffTbl[1] << 18) |
-				               (pDOffTbl[2] << 10) |
-				               (pDOffTbl[3] << 2);
-				pDOffTbl += 3;
+				offset_diff = ((pDiffOffTbl[0] & 0x3F) << 26) |
+				               (pDiffOffTbl[1] << 18) |
+				               (pDiffOffTbl[2] << 10) |
+				               (pDiffOffTbl[3] << 2);
+				pDiffOffTbl += 3;
 				break;
 		}
 
 		if (doneOffsets)
 			break;
 
-		// Add the difference to pDiffTbl.
-		pDiffTbl += offset_diff;
-		if (pDiffTbl + 3 >= pDiffTblEnd) {
+		// Add the difference to pOffTbl.
+		pOffTbl += offset_diff;
+		if (pOffTbl + 3 >= pOffTblEnd) {
 			// Out of bounds!
 			// TODO: Store more comprehensive error information.
 			return -EIO;
@@ -233,9 +237,9 @@ int Mst::loadMST(FILE *fp)
 		// Read the 32-bit value at this offset.
 		uint32_t real_offset;
 		if (m_isBigEndian) {
-			real_offset = be32_to_cpu(*(uint32_t*)pDiffTbl);
+			real_offset = be32_to_cpu(*(uint32_t*)pOffTbl);
 		} else {
-			real_offset = le32_to_cpu(*(uint32_t*)pDiffTbl);
+			real_offset = le32_to_cpu(*(uint32_t*)pOffTbl);
 		}
 		vMsgOffsets.push_back(real_offset);
 	}
@@ -246,16 +250,16 @@ int Mst::loadMST(FILE *fp)
 
 	// NOTE: First string is the string table name.
 	// Get that one first.
-	pDiffTbl = &mst_data[sizeof(mst_header)];
+	pOffTbl = &mst_data[sizeof(mst_header)];
 	do {
-		const char *const pMsgName = reinterpret_cast<const char*>(&pDiffTbl[vMsgOffsets[0]]);
-		if (pMsgName >= reinterpret_cast<const char*>(pDiffTblEnd)) {
+		const char *const pMsgName = reinterpret_cast<const char*>(&pOffTbl[vMsgOffsets[0]]);
+		if (pMsgName >= reinterpret_cast<const char*>(pOffTblEnd)) {
 			// MsgName for the string table name is out of range.
 			// TODO: Store more comprehensive error information.
 			break;
 		}
 
-		size_t msgNameLen = strnlen(pMsgName, reinterpret_cast<const char*>(pDiffTblEnd) - pMsgName);
+		size_t msgNameLen = strnlen(pMsgName, reinterpret_cast<const char*>(pOffTblEnd) - pMsgName);
 		m_name = cpN_to_utf8(932, pMsgName, static_cast<int>(msgNameLen));
 	} while (0);
 
@@ -267,22 +271,22 @@ int Mst::loadMST(FILE *fp)
 	size_t msgNum = 0;
 	size_t idx = 0;	// String index.
 	for (size_t i = 1; i + 1 < vMsgOffsets.size(); i += 2, msgNum++, idx++) {
-		const char *const pMsgName = reinterpret_cast<const char*>(&pDiffTbl[vMsgOffsets[i]]);
+		const char *const pMsgName = reinterpret_cast<const char*>(&pOffTbl[vMsgOffsets[i]]);
 		// TODO: Verify alignment.
-		const char16_t *pMsgText = reinterpret_cast<const char16_t*>(&pDiffTbl[vMsgOffsets[i+1]]);
+		const char16_t *pMsgText = reinterpret_cast<const char16_t*>(&pOffTbl[vMsgOffsets[i+1]]);
 
-		if (pMsgName >= reinterpret_cast<const char*>(pDiffTblEnd)) {
+		if (pMsgName >= reinterpret_cast<const char*>(pOffTblEnd)) {
 			// MsgName is out of range.
 			// TODO: Store more comprehensive error information.
 			break;
-		} else if (pMsgText >= reinterpret_cast<const char16_t*>(pDiffTblEnd)) {
+		} else if (pMsgText >= reinterpret_cast<const char16_t*>(pOffTblEnd)) {
 			// MsgText is out of range.
 			// TODO: Store more comprehensive error information.
 			break;
 		}
 
 		// Get the message name.
-		size_t msgNameLen = strnlen(pMsgName, reinterpret_cast<const char*>(pDiffTblEnd) - pMsgName);
+		size_t msgNameLen = strnlen(pMsgName, reinterpret_cast<const char*>(pOffTblEnd) - pMsgName);
 		string msgName = cpN_to_utf8(932, pMsgName, static_cast<int>(msgNameLen));
 
 		msgText.clear();
@@ -297,7 +301,7 @@ int Mst::loadMST(FILE *fp)
 			// Find the end of the message text.
 			size_t len = 0;
 			if (m_isBigEndian) {
-				for (; pMsgText < reinterpret_cast<const char16_t*>(pDiffTblEnd); pMsgText++) {
+				for (; pMsgText < reinterpret_cast<const char16_t*>(pOffTblEnd); pMsgText++) {
 					if (*pMsgText == cpu_to_be16(0)) {
 						// Found the NULL terminator.
 						break;
@@ -305,7 +309,7 @@ int Mst::loadMST(FILE *fp)
 					msgText += static_cast<char16_t>(be16_to_cpu(*pMsgText));
 				}
 			} else {
-				for (; pMsgText < reinterpret_cast<const char16_t*>(pDiffTblEnd); pMsgText++) {
+				for (; pMsgText < reinterpret_cast<const char16_t*>(pOffTblEnd); pMsgText++) {
 					if (*pMsgText == cpu_to_le16(0)) {
 						// Found the NULL terminator.
 						break;
@@ -382,6 +386,7 @@ int Mst::loadXML(FILE *fp, std::vector<std::string> *pVecErrs)
 	m_name.clear();
 	m_vStrTbl.clear();
 	m_vStrLkup.clear();
+	m_vDiffOffTbl.clear();
 	m_version = '1';
 	m_isBigEndian = true;
 
@@ -398,6 +403,8 @@ int Mst::loadXML(FILE *fp, std::vector<std::string> *pVecErrs)
 		}
 		return xml.ErrorID();
 	}
+
+	// TODO: Load m_vDiffOffTbl.
 
 	// Get the root element: "mst06"
 	XMLElement *const xml_mst06 = xml.FirstChildElement("mst06");
@@ -616,6 +623,7 @@ int Mst::saveMST(FILE *fp) const
 	vector<uint8_t> vOffsetTblType;	// Type of entry for each offset: 0=zero, 1=text, 2=name
 	vector<char16_t> vMsgText;	// Message text.
 	vector<char> vMsgNames;		// Message names.
+	// TODO: Use m_vDiffOffTbl.
 	vector<char> vDiffOffTbl;	// Differential offset table.
 
 	// TODO: Better size reservations.
@@ -892,6 +900,13 @@ int Mst::saveXML(FILE *fp) const
 		}
 	}
 
+	// Save the differential offset table.
+	// FIXME: Show an error if the differential offset table is empty.
+	const string diffOffTbl = escapeDiffOffTbl(m_vDiffOffTbl.data(), m_vDiffOffTbl.size());
+	XMLElement *const xml_diffOffTbl = xml.NewElement("DiffOffTbl");
+	xml_mst06->InsertEndChild(xml_diffOffTbl);
+	xml_diffOffTbl->SetText(diffOffTbl.c_str());
+
 	// Save the XML document.
 	// NOTE: Using our custom XMLPrinter for tabs instead of spaces.
 	MstXMLPrinter stream(fp, false);
@@ -1110,6 +1125,30 @@ u16string Mst::unescape(const u16string &str)
 				ret += u'\\';
 				ret += *iter;
 				break;
+		}
+	}
+	return ret;
+}
+
+/**
+ * Format a differential offset table as an XML-compatible string.
+ * @param diffTbl Differential offset table.
+ * @param len Length.
+ * @return XML-compatible string.
+ */
+string Mst::escapeDiffOffTbl(const uint8_t *diffTbl, size_t len)
+{
+	string ret;
+	ret.reserve(len+16);
+	for (; len > 0; diffTbl++, len--) {
+		if (*diffTbl < 0x20 || *diffTbl >= 0x7F) {
+			// Escape the character.
+			char buf[8];
+			snprintf(buf, sizeof(buf), "\\x%02X", *diffTbl);
+			ret += buf;
+		} else {
+			// Use the character as-is.
+			ret += *diffTbl;
 		}
 	}
 	return ret;
