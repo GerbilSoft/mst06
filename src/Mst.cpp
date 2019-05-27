@@ -1132,18 +1132,18 @@ u16string Mst::unescape(const u16string &str)
 
 /**
  * Format a differential offset table as an XML-compatible string.
- * @param diffTbl Differential offset table.
- * @param len Length.
+ * @param diffOffTbl	[in] Differential offset table.
+ * @param len		[in] Length.
  * @return XML-compatible string.
  */
-string Mst::escapeDiffOffTbl(const uint8_t *diffTbl, size_t len)
+string Mst::escapeDiffOffTbl(const uint8_t *diffOffTbl, size_t len)
 {
 	string ret;
 	ret.reserve(len+16);
-	for (; len > 0; diffTbl++, len--) {
-		if (*diffTbl < 0x20 || *diffTbl >= 0x7F) {
+	for (; len > 0; diffOffTbl++, len--) {
+		if (*diffOffTbl < 0x20 || *diffOffTbl >= 0x7F) {
 			// Escape the character.
-			switch (*diffTbl) {
+			switch (*diffOffTbl) {
 				case '\\':
 					ret += "\\";
 					break;
@@ -1155,14 +1155,14 @@ string Mst::escapeDiffOffTbl(const uint8_t *diffTbl, size_t len)
 					break;
 				default: {
 					char buf[8];
-					snprintf(buf, sizeof(buf), "\\x%02X", *diffTbl);
+					snprintf(buf, sizeof(buf), "\\x%02X", *diffOffTbl);
 					ret += buf;
 					break;
 				}
 			}
 		} else {
 			// Use the character as-is.
-			ret += *diffTbl;
+			ret += *diffOffTbl;
 		}
 	}
 	return ret;
