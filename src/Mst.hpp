@@ -209,6 +209,14 @@ class Mst
 		 */
 		static std::string escapeDiffOffTbl(const uint8_t *diffTbl, size_t len);
 
+		/**
+		 * Unescape an XML-compatible differential offset table.
+		 * @param vDiffOffTbl	[out] Vector for the unescaped table.
+		 * @param s_diffOffTbl	[in] Differential offset table string.
+		 * @return 0 on success; non-zero on error.
+		 */
+		static int unescapeDiffOffTbl(std::vector<uint8_t> &vDiffOffTbl, const char *s_diffOffTbl);
+
 	private:
 		// MST information.
 		char m_version;		// MST version number. ('1')

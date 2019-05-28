@@ -13,6 +13,7 @@
 
 // C includes. (C++ namespace)
 #include <cassert>
+#include <cctype>
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
@@ -404,8 +405,6 @@ int Mst::loadXML(FILE *fp, std::vector<std::string> *pVecErrs)
 		return xml.ErrorID();
 	}
 
-	// TODO: Load m_vDiffOffTbl.
-
 	// Get the root element: "mst06"
 	XMLElement *const xml_mst06 = xml.FirstChildElement("mst06");
 	if (!xml_mst06) {
@@ -558,6 +557,13 @@ int Mst::loadXML(FILE *fp, std::vector<std::string> *pVecErrs)
 	}
 
 	// TODO: Check for missing message indexes.
+
+	// Load the differential offset table.
+	// TODO: Error message if not found?
+	XMLElement *const xml_diffOffTbl = xml_mst06->FirstChildElement("DiffOffTbl");
+	if (xml_diffOffTbl) {
+		unescapeDiffOffTbl(m_vDiffOffTbl, xml_diffOffTbl->GetText());
+	}
 
 	// Document processed.
 	return 0;
@@ -1166,4 +1172,75 @@ string Mst::escapeDiffOffTbl(const uint8_t *diffOffTbl, size_t len)
 		}
 	}
 	return ret;
+}
+
+/**
+ * Unescape an XML-compatible differential offset table.
+ * @param vDiffOffTbl	[out] Vector for the unescaped table.
+ * @param s_diffOffTbl	[in] Differential offset table string.
+ * @return 0 on success; non-zero on error.
+ */
+int Mst::unescapeDiffOffTbl(std::vector<uint8_t> &vDiffOffTbl, const char *s_diffOffTbl)
+{
+	vDiffOffTbl.clear();
+	if (!s_diffOffTbl) {
+		return -EINVAL;
+	}
+
+	// TODO: Default reservation size instead of strlen()?
+	vDiffOffTbl.reserve(strlen(s_diffOffTbl));
+
+	for (; s_diffOffTbl[0] != '\0'; s_diffOffTbl++) {
+		// Check for an escape sequence.
+		if (s_diffOffTbl[0] == '\\') {
+			// Found a backslash.
+			switch (s_diffOffTbl[1]) {
+				case '\\':
+					vDiffOffTbl.push_back('\\');
+					s_diffOffTbl++;
+					break;
+				case 'n':
+					vDiffOffTbl.push_back('\n');
+					s_diffOffTbl++;
+					break;
+				case 'f':
+					vDiffOffTbl.push_back('\f');
+					s_diffOffTbl++;
+					break;
+				case 'x':
+					// Next two characters must be hexadecimal digits.
+					if (!isxdigit(s_diffOffTbl[2]) || !isxdigit(s_diffOffTbl[3])) {
+						// Invalid sequence.
+						// Skip over the "\\x" and continue.
+						// TODO: Return an error?
+						s_diffOffTbl++;
+					} else {
+						// Valid sequence. Convert to uint8_t.
+						char buf[3];
+						buf[0] = s_diffOffTbl[2];
+						buf[1] = s_diffOffTbl[3];
+						buf[2] = 0;
+						vDiffOffTbl.push_back(strtoul(buf, nullptr, 16));
+						s_diffOffTbl += 3;
+					}
+					break;
+				default:
+					// Unrecognized escape character.
+					// Handle the escape as a regular backslash.
+					// TODO: Return an error?
+					vDiffOffTbl.push_back('\\');
+					break;
+			}
+		} else {
+			// Regular character.
+			vDiffOffTbl.push_back(static_cast<uint8_t>(s_diffOffTbl[0]));
+		}
+	}
+
+	// Make sure the table is DWORD-aligned.
+	if (vDiffOffTbl.size() & 3) {
+		vDiffOffTbl.resize((vDiffOffTbl.size() + 4) & ~(3ULL));
+	}
+
+	return 0;
 }
