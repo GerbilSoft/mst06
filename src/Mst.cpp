@@ -26,8 +26,10 @@
 // C++ includes.
 #include <memory>
 #include <string>
+#include <unordered_map>
 using std::u16string;
 using std::unique_ptr;
+using std::unordered_map;
 using std::string;
 using std::vector;
 
@@ -646,6 +648,10 @@ int Mst::saveMST(FILE *fp) const
 	const uint8_t *pDiffOffTbl = m_vDiffOffTbl.data();	// Differential offset table.
 	const uint8_t *const pDiffOffTblEnd = pDiffOffTbl + m_vDiffOffTbl.size();
 
+	// String deduplication for vMsgNames.
+	// TODO: Do we need to deduplicate *all* strings, or just the string table name.
+	unordered_map<string, size_t> map_nameDedupe;
+
 	// TODO: Better size reservations.
 	vOffsetTbl.reserve(m_vStrTbl.size() * 3);
 	vOffsetTblType.reserve(m_vStrTbl.size() * 3);
@@ -671,6 +677,9 @@ int Mst::saveMST(FILE *fp) const
 			// +1 for NULL terminator.
 			vMsgNames.resize(name_size + 1);
 			memcpy(vMsgNames.data(), m_name.c_str(), name_size+1);
+
+			// Add to the name deduplication map.
+			map_nameDedupe.insert(std::make_pair(m_name, 0));
 		} else {
 			// Empty string table name...
 			// TODO: Report a warning.
@@ -700,20 +709,34 @@ int Mst::saveMST(FILE *fp) const
 
 	size_t i = 0;
 	for (auto iter = m_vStrTbl.cbegin(); iter != m_vStrTbl.cend(); ++iter, ++i) {
-		const size_t name_pos = vMsgNames.size();
+		size_t name_pos = vMsgNames.size();
 		const size_t text_pos = vMsgText.size();
 
 		// Copy the message name.
 		if (!iter->first.empty()) {
-			// Convert to Shift-JIS first.
-			// TODO: Show warnings for strings with characters that
-			// can't be converted to Shift-JIS?
-			const string sjis_str = utf8_to_cpN(932, iter->first.data(), (int)iter->first.size());
-			// Copy the message name into the vector.
-			const size_t name_size = sjis_str.size();
-			// +1 for NULL terminator.
-			vMsgNames.resize(name_pos + name_size + 1);
-			memcpy(&vMsgNames[name_pos], sjis_str.c_str(), name_size+1);
+			// Is the name already present?
+			// This usually occurs if a string has the same name as the string table.
+			// TODO: Do we need to deduplicate *all* strings, or just the string table name.
+			auto map_iter = map_nameDedupe.find(iter->first);
+			if (map_iter != map_nameDedupe.end()) {
+				// Found the string.
+				name_pos = map_iter->second;
+			} else {
+				// String not found, so cannot dedupe.
+
+				// Convert to Shift-JIS first.
+				// TODO: Show warnings for strings with characters that
+				// can't be converted to Shift-JIS?
+				const string sjis_str = utf8_to_cpN(932, iter->first.data(), (int)iter->first.size());
+				// Copy the message name into the vector.
+				const size_t name_size = sjis_str.size();
+				// +1 for NULL terminator.
+				vMsgNames.resize(name_pos + name_size + 1);
+				memcpy(&vMsgNames[name_pos], sjis_str.c_str(), name_size+1);
+
+				// Add the string to the deduplication map.
+				map_nameDedupe.insert(std::make_pair(iter->first, name_pos));
+			}
 		} else {
 			// Empty message name...
 			// TODO: Report a warning.
