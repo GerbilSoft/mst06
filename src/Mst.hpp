@@ -32,6 +32,15 @@ class Mst
 
 	public:
 		/**
+		 * Get the next offset from the differential offset table.
+		 * @param ppDiffOffTbl		[in/out] Pointer to current pointer into the differential offset table.
+		 * 				         This is adjusted based on the differential offset data.
+		 * @param pDiffOffTblEnd	[in] Pointer to the end of the differential offset table.
+		 * @return Offset value, or ~0U if end of table.
+		 */
+		static uint32_t getNextDiffOff(const uint8_t **ppDiffOffTbl, const uint8_t *const pDiffOffTblEnd);
+
+		/**
 		 * Load an MST string table.
 		 * @param filename MST string table filename.
 		 * @return 0 on success; negative POSIX error code on error.

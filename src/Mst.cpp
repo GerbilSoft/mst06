@@ -47,6 +47,64 @@ Mst::Mst()
 { }
 
 /**
+ * Get the next offset from the differential offset table.
+ * @param ppDiffOffTbl		[in/out] Pointer to current pointer into the differential offset table.
+ * 				         This is adjusted based on the differential offset data.
+ * @param pDiffOffTblEnd	[in] Pointer to the end of the differential offset table.
+ * @return Offset value, or ~0U if end of table.
+ */
+uint32_t Mst::getNextDiffOff(const uint8_t **ppDiffOffTbl, const uint8_t *const pDiffOffTblEnd)
+{
+	uint32_t offset_diff;
+	switch (**ppDiffOffTbl >> 6) {
+		case 0:
+			// 0 bits long. End of offset table.
+			offset_diff = ~0U;
+			break;
+		case 1:
+			// 6 bits long.
+			// Take low 6 bits of this byte and left-shift by 2.
+			offset_diff = (*ppDiffOffTbl[0] & 0x3F) << 2;
+			(*ppDiffOffTbl)++;
+			break;
+
+		// TODO: Verify this. ('06 doesn't use this; Forces might.)
+		case 2:
+			// 14 bits long.
+			// Offset difference is stored in 2 bytes.
+			if (*ppDiffOffTbl + 2 >= pDiffOffTblEnd) {
+				// Out of bounds!
+				// TODO: Store more comprehensive error information.
+				offset_diff = ~0U;
+				break;
+			}
+			offset_diff = ((*ppDiffOffTbl[0] & 0x3F) << 10) |
+				       (*ppDiffOffTbl[1] << 2);
+			*ppDiffOffTbl += 2;
+			break;
+
+		// TODO: Verify this. ('06 doesn't use this; Forces might.)
+		case 3:
+			// 30 bits long.
+			// Offset difference is stored in 4 bytes.
+			if (*ppDiffOffTbl + 4 >= pDiffOffTblEnd) {
+				// Out of bounds!
+				// TODO: Store more comprehensive error information.
+				offset_diff = ~0U;
+				break;
+			}
+			offset_diff = ((*ppDiffOffTbl[0] & 0x3F) << 26) |
+				       (*ppDiffOffTbl[1] << 18) |
+				       (*ppDiffOffTbl[2] << 10) |
+				       (*ppDiffOffTbl[3] << 2);
+			*ppDiffOffTbl += 3;
+			break;
+	}
+
+	return offset_diff;
+}
+
+/**
  * Load an MST string table.
  * @param filename MST string table filename.
  * @return 0 on success; negative POSIX error code on error.
@@ -177,55 +235,10 @@ int Mst::loadMST(FILE *fp)
 	// actual message offsets.
 	vector<uint32_t> vMsgOffsets;
 	bool doneOffsets = false;
-	for (; pDiffOffTbl < pDiffOffTblEnd; pDiffOffTbl++) {
+	while (pDiffOffTbl < pDiffOffTblEnd) {
 		// High two bits of this byte indicate how long the offset is.
-		uint32_t offset_diff = 0;
-		switch (*pDiffOffTbl >> 6) {
-			case 0:
-				// 0 bits long. End of offset table.
-				doneOffsets = true;
-				break;
-			case 1:
-				// 6 bits long.
-				// Take low 6 bits of this byte and left-shift by 2.
-				offset_diff = (pDiffOffTbl[0] & 0x3F) << 2;
-				break;
-
-			// TODO: Verify this. ('06 doesn't use this; Forces might.)
-			case 2:
-				// 14 bits long.
-				// Offset difference is stored in 2 bytes.
-				if (pDiffOffTbl + 2 >= pDiffOffTblEnd) {
-					// Out of bounds!
-					// TODO: Store more comprehensive error information.
-					doneOffsets = true;
-					break;
-				}
-				offset_diff = ((pDiffOffTbl[0] & 0x3F) << 10) |
-				               (pDiffOffTbl[1] << 2);
-				pDiffOffTbl++;
-				break;
-
-			// TODO: Verify this. ('06 doesn't use this; Forces might.)
-			case 3:
-				// 30 bits long.
-				// Offset difference is stored in 4 bytes.
-				if (pDiffOffTbl + 4 >= pDiffOffTblEnd) {
-					// Out of bounds!
-					// TODO: Store more comprehensive error information.
-					doneOffsets = true;
-					break;
-				}
-				offset_diff = ((pDiffOffTbl[0] & 0x3F) << 26) |
-				               (pDiffOffTbl[1] << 18) |
-				               (pDiffOffTbl[2] << 10) |
-				               (pDiffOffTbl[3] << 2);
-				pDiffOffTbl += 3;
-				break;
-		}
-
-		if (doneOffsets)
-			break;
+		uint32_t offset_diff = getNextDiffOff(&pDiffOffTbl, pDiffOffTblEnd);
+		if (offset_diff == ~0U) break;
 
 		// Add the difference to pOffTbl.
 		pOffTbl += offset_diff;
@@ -599,7 +612,6 @@ int Mst::saveMST(const TCHAR *filename) const
  */
 int Mst::saveMST(FILE *fp) const
 {
-	// BEFORE MST COMMIT: Check here!
 	if (m_vStrTbl.empty()) {
 		return -ENODATA;	// TODO: Better error code?
 	}
