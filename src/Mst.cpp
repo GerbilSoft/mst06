@@ -1153,6 +1153,9 @@ string Mst::escapeDiffOffTbl(const uint8_t *diffOffTbl, size_t len)
 				case '\\':
 					ret += "\\";
 					break;
+				case '\0':
+					ret += "\\0";
+					break;
 				case '\n':
 					ret += "\\n";
 					break;
@@ -1199,6 +1202,10 @@ int Mst::unescapeDiffOffTbl(std::vector<uint8_t> &vDiffOffTbl, const char *s_dif
 					vDiffOffTbl.push_back('\\');
 					s_diffOffTbl++;
 					break;
+				case '0':
+					vDiffOffTbl.push_back(0);
+					s_diffOffTbl++;
+					break;
 				case 'n':
 					vDiffOffTbl.push_back('\n');
 					s_diffOffTbl++;
@@ -1240,6 +1247,11 @@ int Mst::unescapeDiffOffTbl(std::vector<uint8_t> &vDiffOffTbl, const char *s_dif
 	// Make sure the table is DWORD-aligned.
 	if (vDiffOffTbl.size() & 3) {
 		vDiffOffTbl.resize((vDiffOffTbl.size() + 4) & ~(3ULL));
+	}
+
+	// If the last element isn't '\0', add another 4 bytes.
+	if (vDiffOffTbl.empty() || vDiffOffTbl[vDiffOffTbl.size()-1] != 0) {
+		vDiffOffTbl.resize(vDiffOffTbl.size() + 4);
 	}
 
 	return 0;
