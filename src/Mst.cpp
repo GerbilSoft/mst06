@@ -614,6 +614,9 @@ int Mst::saveMST(FILE *fp) const
 {
 	if (m_vStrTbl.empty()) {
 		return -ENODATA;	// TODO: Better error code?
+	} else if (m_vDiffOffTbl.empty()) {
+		// FIXME: How to generate differential offsets properly?
+		return -EIO;		// TODO: Better error code?
 	}
 
 	// MST header.
@@ -636,20 +639,18 @@ int Mst::saveMST(FILE *fp) const
 	// NOTE: vOffsetTbl will have offsets relative to the
 	// beginning of each vMsgNames and vMsgText in the first run.
 	// The base addresses will be added in the second run.
-	// vOffsetTblType will be used to determine the base address.
 	vector<uint32_t> vOffsetTbl;	// Primary offset table.
 	vector<uint8_t> vOffsetTblType;	// Type of entry for each offset: 0=zero, 1=text, 2=name
 	vector<char16_t> vMsgText;	// Message text.
 	vector<char> vMsgNames;		// Message names.
-	// TODO: Use m_vDiffOffTbl.
-	vector<char> vDiffOffTbl;	// Differential offset table.
+	const uint8_t *pDiffOffTbl = m_vDiffOffTbl.data();	// Differential offset table.
+	const uint8_t *const pDiffOffTblEnd = pDiffOffTbl + m_vDiffOffTbl.size();
 
 	// TODO: Better size reservations.
 	vOffsetTbl.reserve(m_vStrTbl.size() * 3);
 	vOffsetTblType.reserve(m_vStrTbl.size() * 3);
 	vMsgText.reserve(m_vStrTbl.size() * 32);
 	vMsgNames.reserve(m_vStrTbl.size() * 32);
-	vDiffOffTbl.reserve((m_vStrTbl.size() + 3) & ~(size_t)(3U));
 
 	// For strings with both name and text, three offsets will be stored:
 	// - Name offset
@@ -658,8 +659,7 @@ int Mst::saveMST(FILE *fp) const
 
 	// For strings with only name, only the name offset will be stored.
 	// TODO: Compare to MST files and see if maybe a zero is stored too?
-
-	bool hasAZero = false;	// If true, skip 8 bytes for the next offset.
+	uint32_t offset_diff;
 
 	// String table name.
 	// NOTE: While this is part of the names table, the offset is stored
@@ -679,11 +679,19 @@ int Mst::saveMST(FILE *fp) const
 			memcpy(vMsgNames.data(), empty_name, sizeof(empty_name));
 		}
 
-		// Skip 4 bytes from the beginning of the WTXT header.
-		vDiffOffTbl.push_back('A');
-
-		// Next offset will skip 8 bytes to skip over the string count.
-		hasAZero = true;
+		// Differential offset table initialization:
+		// - 'A': Skip "WTXT"
+		// - 'B': Skip string table name offset and count.
+		offset_diff = getNextDiffOff(&pDiffOffTbl, pDiffOffTblEnd);
+		if (offset_diff != 4) {
+			// Invalid differential offset for the string table name...
+			return -EIO;	// TODO: Better error code?
+		}
+		offset_diff = getNextDiffOff(&pDiffOffTbl, pDiffOffTblEnd);
+		if (offset_diff != 8) {
+			// Invalid differential offset for the string table name...
+			return -EIO;	// TODO: Better error code?
+		}
 	}
 
 	// Host endianness.
@@ -718,10 +726,23 @@ int Mst::saveMST(FILE *fp) const
 		assert(name_pos <= 16U*1024*1024);
 		vOffsetTbl.push_back(static_cast<uint32_t>(name_pos));
 		vOffsetTblType.push_back(2);	// Name
-		// Difference of 4 or 8 bytes, depending on whether or not
-		// a zero offset was added previously.
-		vDiffOffTbl.push_back(hasAZero ? 'B' : 'A');
-		hasAZero = false;
+
+		// If the next differential offset is >4, skip some bytes in the offset table.
+		// NOTE: Offset is always a multiple of 4.
+		offset_diff = getNextDiffOff(&pDiffOffTbl, pDiffOffTblEnd);
+		/* TODO: Handle this?
+		if (offset_diff < 4) {
+			// Shouldn't be less than 4!
+			return -EIO;	// TODO: Better error code?
+		} */
+		if (offset_diff == ~0U) {
+			// End of offset table.
+			break;
+		}
+		for (; offset_diff > 4; offset_diff -= 4) {
+			vOffsetTbl.push_back(0);
+			vOffsetTblType.push_back(0);    // Zero
+		}
 
 		// Copy the message text.
 		// TODO: Add support for writing little-endian files?
@@ -748,16 +769,30 @@ int Mst::saveMST(FILE *fp) const
 			// since vMsgText is char16_t, but vOffsetTbl uses bytes.
 			assert(text_pos <= 16U*1024*1024);
 			vOffsetTbl.push_back(static_cast<uint32_t>(text_pos * sizeof(char16_t)));
-			vOffsetTbl.push_back(0);	// Zero entry.
-			vOffsetTblType.push_back(1);	// Text
-			vOffsetTblType.push_back(0);	// Zero
+			vOffsetTblType.push_back(1);    // Text
 
-			// Difference of 4 bytes from the previous offset,
-			// and we now have a zero offset.
-			vDiffOffTbl.push_back('A');
-			hasAZero = true;
+			// If the next differential offset is >4, skip some bytes in the offset table.
+			// NOTE: Offset is always a multiple of 4.
+			offset_diff = getNextDiffOff(&pDiffOffTbl, pDiffOffTblEnd);
+			/* TODO: Handle this?
+			if (offset_diff < 4) {
+				// Shouldn't be less than 4!
+				return -EIO;	// TODO: Better error code?
+			} */
+			if (offset_diff == ~0U) {
+				// End of offset table.
+				break;
+			}
+			for (; offset_diff > 4; offset_diff -= 4) {
+				vOffsetTbl.push_back(0);
+				vOffsetTblType.push_back(0);    // Zero
+			}
 		}
 	}
+
+	// Offset table always ends with an extra zero.
+	vOffsetTbl.push_back(0);
+	vOffsetTblType.push_back(0);	// Zero
 
 	// Determine the message table base addresses.
 	const uint32_t text_tbl_base = static_cast<uint32_t>(sizeof(wtxt_header) + (vOffsetTbl.size() * sizeof(uint32_t)));
@@ -771,12 +806,7 @@ int Mst::saveMST(FILE *fp) const
 		vMsgNames.resize(vMsgNames.size() + (4 - (doff_tbl_offset & 3)));
 		doff_tbl_offset = static_cast<uint32_t>(name_tbl_base + vMsgNames.size());
 	}
-	uint32_t doff_tbl_length = static_cast<uint32_t>(vDiffOffTbl.size());
-	if (doff_tbl_length & 3) {
-		// Need to align the size to a multiple of 4.
-		vDiffOffTbl.resize((vDiffOffTbl.size() + 3) & ~(size_t)(3U));
-		doff_tbl_length = static_cast<uint32_t>(vDiffOffTbl.size());
-	}
+	const uint32_t doff_tbl_length = static_cast<uint32_t>(m_vDiffOffTbl.size());
 
 	// Update WTXT_Header.
 	wtxt_header.msg_tbl_name_offset = cpu_to_be32(name_tbl_base);
@@ -851,8 +881,8 @@ int Mst::saveMST(FILE *fp) const
 		return (errno ? -errno : -EIO);
 	}
 	errno = 0;
-	size = fwrite(vDiffOffTbl.data(), 1, vDiffOffTbl.size(), fp);
-	if (size != vDiffOffTbl.size()) {
+	size = fwrite(m_vDiffOffTbl.data(), 1, m_vDiffOffTbl.size(), fp);
+	if (size != m_vDiffOffTbl.size()) {
 		return (errno ? -errno : -EIO);
 	}
 
