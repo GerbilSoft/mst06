@@ -212,11 +212,11 @@ class Mst
 
 		/**
 		 * Format a differential offset table as an XML-compatible string.
-		 * @param diffOffTbl	[in] Differential offset table.
+		 * @param pDiffOffTbl	[in] Differential offset table.
 		 * @param len		[in] Length.
 		 * @return XML-compatible string.
 		 */
-		static std::string escapeDiffOffTbl(const uint8_t *diffTbl, size_t len);
+		static std::string escapeDiffOffTbl(const uint8_t *pDiffOffTbl, size_t len);
 
 		/**
 		 * Unescape an XML-compatible differential offset table.

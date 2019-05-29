@@ -960,14 +960,54 @@ int Mst::saveXML(FILE *fp) const
 	xml_mst06->SetAttribute("mst_version", verstr);
 	xml_mst06->SetAttribute("endianness", (m_isBigEndian ? "B" : "L"));
 
+	// Differential offset table data.
+	const uint8_t *pDiffOffTbl = m_vDiffOffTbl.data();	// Differential offset table.
+	const uint8_t *const pDiffOffTblEnd = pDiffOffTbl + m_vDiffOffTbl.size();
+	uint32_t offset_diff;
+
+	{
+		const uint8_t *const pDiffOffTbl_first = pDiffOffTbl;
+
+		// Differential offset table initialization:
+		// - 'A': Skip "WTXT"
+		// - 'B': Skip string table name offset and count.
+		offset_diff = getNextDiffOff(&pDiffOffTbl, pDiffOffTblEnd);
+		if (offset_diff != 4) {
+			// Invalid differential offset for the string table name...
+			return -EIO;	// TODO: Better error code?
+		}
+		offset_diff = getNextDiffOff(&pDiffOffTbl, pDiffOffTblEnd);
+		if (offset_diff != 8) {
+			// Invalid differential offset for the string table name...
+			return -EIO;	// TODO: Better error code?
+		}
+
+		if (pDiffOffTbl != pDiffOffTbl_first) {
+			// Save the differential offset table data.
+			xml_mst06->SetAttribute("diffOff", escapeDiffOffTbl(pDiffOffTbl_first, pDiffOffTbl - pDiffOffTbl_first).c_str());
+		}
+	}
+
 	size_t i = 0;
 	for (auto iter = m_vStrTbl.cbegin(); iter != m_vStrTbl.cend(); ++iter, ++i) {
+		const uint8_t *const pDiffOffTbl_first = pDiffOffTbl;
+
 		XMLElement *const xml_msg = xml.NewElement("message");
 		xml_mst06->InsertEndChild(xml_msg);
 		xml_msg->SetAttribute("index", static_cast<unsigned int>(i));
 		xml_msg->SetAttribute("name", iter->first.c_str());
+		// TODO: Make sure that offset_diff isn't ~0U.
+		offset_diff = getNextDiffOff(&pDiffOffTbl, pDiffOffTblEnd);
+
 		if (!iter->second.empty()) {
 			xml_msg->SetText(escape(utf16_to_utf8(iter->second)).c_str());
+			// TODO: Make sure that offset_diff isn't ~0U.
+			offset_diff = getNextDiffOff(&pDiffOffTbl, pDiffOffTblEnd);
+		}
+
+		if (pDiffOffTbl != pDiffOffTbl_first) {
+			// Save the differential offset table data.
+			xml_msg->SetAttribute("diffOff", escapeDiffOffTbl(pDiffOffTbl_first, pDiffOffTbl - pDiffOffTbl_first).c_str());
 		}
 	}
 
@@ -1203,18 +1243,18 @@ u16string Mst::unescape(const u16string &str)
 
 /**
  * Format a differential offset table as an XML-compatible string.
- * @param diffOffTbl	[in] Differential offset table.
+ * @param pDiffOffTbl	[in] Differential offset table.
  * @param len		[in] Length.
  * @return XML-compatible string.
  */
-string Mst::escapeDiffOffTbl(const uint8_t *diffOffTbl, size_t len)
+string Mst::escapeDiffOffTbl(const uint8_t *pDiffOffTbl, size_t len)
 {
 	string ret;
 	ret.reserve(len+16);
-	for (; len > 0; diffOffTbl++, len--) {
-		if (*diffOffTbl < 0x20 || *diffOffTbl >= 0x7F) {
+	for (; len > 0; pDiffOffTbl++, len--) {
+		if (*pDiffOffTbl < 0x20 || *pDiffOffTbl >= 0x7F) {
 			// Escape the character.
-			switch (*diffOffTbl) {
+			switch (*pDiffOffTbl) {
 				case '\\':
 					ret += "\\";
 					break;
@@ -1229,14 +1269,14 @@ string Mst::escapeDiffOffTbl(const uint8_t *diffOffTbl, size_t len)
 					break;
 				default: {
 					char buf[8];
-					snprintf(buf, sizeof(buf), "\\x%02X", *diffOffTbl);
+					snprintf(buf, sizeof(buf), "\\x%02X", *pDiffOffTbl);
 					ret += buf;
 					break;
 				}
 			}
 		} else {
 			// Use the character as-is.
-			ret += *diffOffTbl;
+			ret += *pDiffOffTbl;
 		}
 	}
 	return ret;
