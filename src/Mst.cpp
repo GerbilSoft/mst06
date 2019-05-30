@@ -1354,10 +1354,5 @@ int Mst::unescapeDiffOffTbl(std::vector<uint8_t> &vDiffOffTbl, const char *s_dif
 		vDiffOffTbl.resize((vDiffOffTbl.size() + 4) & ~(3ULL));
 	}
 
-	// If the last element isn't '\0', add another 4 bytes.
-	if (vDiffOffTbl.empty() || vDiffOffTbl[vDiffOffTbl.size()-1] != 0) {
-		vDiffOffTbl.resize(vDiffOffTbl.size() + 4);
-	}
-
 	return 0;
 }
