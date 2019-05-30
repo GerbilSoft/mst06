@@ -1042,8 +1042,7 @@ void Mst::dump(void) const
 		printf("* Message %zu: %s -> ", idx, iter->first.c_str());
 
 		// Convert the message text from UTF-16 to UTF-8.
-		// TODO: Escape newlines and form feeds?
-		printf("%s\n", utf16_to_utf8(iter->second).c_str());
+		printf("%s\n", escape(utf16_to_utf8(iter->second)).c_str());
 
 		// Is there a placeholder name associated with this message?
 		auto plc_iter = m_mapPlaceholder.find(idx);
@@ -1154,10 +1153,10 @@ u16string Mst::escape(const u16string &str)
 				ret += u"\\\\";
 				break;
 			case '\n':
-				ret += u"\\\n";
+				ret += u"\\n";
 				break;
 			case '\f':
-				ret += u"\\\f";
+				ret += u"\\f";
 				break;
 			default:
 				ret += *iter;
