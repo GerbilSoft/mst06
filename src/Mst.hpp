@@ -240,6 +240,11 @@ class Mst
 		// - Second: String text. (UTF-16)
 		std::vector<std::pair<std::string, std::u16string> > m_vStrTbl;
 
+		// Placeholder string table.
+		// - Key: String index.
+		// - Value: Placeholder string, if present. (UTF-8)
+		std::unordered_map<size_t, std::string> m_mapPlaceholder;
+
 		// String name to index lookup.
 		// - Key: String name. (UTF-8)
 		// - Value: String index.

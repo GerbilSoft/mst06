@@ -55,21 +55,16 @@ typedef struct PACKED _WTXT_Header {
 	uint32_t magic;			// [0x000] 'WTXT'
 	uint32_t msg_tbl_name_offset;	// [0x004] Offset of message table name.
 	uint32_t msg_tbl_count;		// [0x008] Number of strings in the message table.
-					//         NOTE: May be incorrect if empty strings
-					//         are present... Maybe this should simply
-					//         be "number of offsets / 3"?
 } WTXT_Header;
 
 /**
  * Following WTXT_Header is an array of message pointers.
  * Messages are encded as UTF-16BE.
- *
- * NOTE: The offset table should be used to determine the actual offsets.
  */
 typedef struct PACKED _WTXT_MsgPointer {
-	uint32_t msg_id_name_offset;	// [0x000] Offset of message name.
-	uint32_t msg_offset;		// [0x004] Offset of message.
-	uint32_t zero;			// [0x008] Zero. (NOTE: May not be present!)
+	uint32_t msg_id_name_offset;	// [0x000] Offset of message name. (Shift-JIS)
+	uint32_t msg_offset;		// [0x004] Offset of message. (UTF-16)
+	uint32_t placeholder_offset;	// [0x008] If non-zero, offset of placeholder icon name. (Shift-JIS)
 } WTXT_MsgPointer;
 
 #pragma pack()

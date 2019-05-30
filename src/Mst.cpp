@@ -143,6 +143,7 @@ int Mst::loadMST(FILE *fp)
 	// Clear the current string tables.
 	m_name.clear();
 	m_vStrTbl.clear();
+	m_mapPlaceholder.clear();
 	m_vStrLkup.clear();
 	m_vDiffOffTbl.clear();
 	m_version = '1';
@@ -221,7 +222,12 @@ int Mst::loadMST(FILE *fp)
 	const WTXT_Header *const pWtxt = reinterpret_cast<const WTXT_Header*>(&mst_data[sizeof(mst_header)]);
 	const uint8_t *pDiffOffTbl = &mst_data[sizeof(mst_header) + mst_header.doff_tbl_offset];
 	const uint8_t *const pDiffOffTblEnd = pDiffOffTbl + mst_header.doff_tbl_length;
+
 	// Keep a copy of the differential offset table for later.
+	// NOTE: The differential offset table doesn't help much when loading
+	// strings, since the offset table for Sonic'06 files always has
+	// triplets of string offsets. It's used by the actual game for
+	// *something*, so it has to be saved properly.
 	m_vDiffOffTbl.resize(pDiffOffTblEnd - pDiffOffTbl);
 	memcpy(m_vDiffOffTbl.data(), pDiffOffTbl, pDiffOffTblEnd - pDiffOffTbl);
 
@@ -230,52 +236,31 @@ int Mst::loadMST(FILE *fp)
 
 	// Offset table.
 	// The offset table has values that point into the message offset table.
-	const uint8_t *pOffTbl = &mst_data[sizeof(mst_header)];
-	const uint8_t *const pOffTblEnd = &mst_data[mst_header.file_size];
+	const uint8_t *const pOffTblU8 = &mst_data[sizeof(mst_header)];
+	const uint8_t *const pOffTblEndU8 = &mst_data[mst_header.file_size];
+	const WTXT_Header *const pWtxtHeader = reinterpret_cast<const WTXT_Header*>(pOffTblU8);
+	const WTXT_MsgPointer *pOffTbl = reinterpret_cast<const WTXT_MsgPointer*>(pOffTblU8 + sizeof(WTXT_Header));
+	const WTXT_MsgPointer *const pOffTblEnd = reinterpret_cast<const WTXT_MsgPointer*>(pOffTblEndU8);
 
-	// Use the differential offset table to get the
-	// actual message offsets.
-	vector<uint32_t> vMsgOffsets;
-	bool doneOffsets = false;
-	while (pDiffOffTbl < pDiffOffTblEnd) {
-		// High two bits of this byte indicate how long the offset is.
-		uint32_t offset_diff = getNextDiffOff(&pDiffOffTbl, pDiffOffTblEnd);
-		if (offset_diff == ~0U) break;
-
-		// Add the difference to pOffTbl.
-		pOffTbl += offset_diff;
-		if (pOffTbl + 3 >= pOffTblEnd) {
-			// Out of bounds!
-			// TODO: Store more comprehensive error information.
-			return -EIO;
-		}
-
-		// Read the 32-bit value at this offset.
-		uint32_t real_offset;
-		if (m_isBigEndian) {
-			real_offset = be32_to_cpu(*(uint32_t*)pOffTbl);
-		} else {
-			real_offset = le32_to_cpu(*(uint32_t*)pOffTbl);
-		}
-		vMsgOffsets.push_back(real_offset);
-	}
-
-	// We now have a vector of offset pairs:
-	// - First offset: Message name.
-	// - Second offset: Message text.
+	static const bool hostIsBigEndian = (SYS_BYTEORDER == SYS_BIG_ENDIAN);
+	const bool hostMatchesFileEndianness = (hostIsBigEndian == m_isBigEndian);
 
 	// NOTE: First string is the string table name.
 	// Get that one first.
-	pOffTbl = &mst_data[sizeof(mst_header)];
 	do {
-		const char *const pMsgName = reinterpret_cast<const char*>(&pOffTbl[vMsgOffsets[0]]);
-		if (pMsgName >= reinterpret_cast<const char*>(pOffTblEnd)) {
+		uint32_t name_offset = pWtxtHeader->msg_tbl_name_offset;
+		if (!hostMatchesFileEndianness) {
+			name_offset = __swab32(name_offset);
+		}
+
+		const char *const pMsgName = reinterpret_cast<const char*>(&pOffTblU8[name_offset]);
+		if (pMsgName >= reinterpret_cast<const char*>(pOffTblEndU8)) {
 			// MsgName for the string table name is out of range.
 			// TODO: Store more comprehensive error information.
 			break;
 		}
 
-		size_t msgNameLen = strnlen(pMsgName, reinterpret_cast<const char*>(pOffTblEnd) - pMsgName);
+		size_t msgNameLen = strnlen(pMsgName, reinterpret_cast<const char*>(pOffTblEndU8) - pMsgName);
 		m_name = cpN_to_utf8(932, pMsgName, static_cast<int>(msgNameLen));
 	} while (0);
 
@@ -284,54 +269,58 @@ int Mst::loadMST(FILE *fp)
 
 	// Load the actual strings.
 	// NOTE: Strings are NULL-terminated, so we have to determine the string length using strnlen().
-	size_t msgNum = 0;
 	size_t idx = 0;	// String index.
-	for (size_t i = 1; i + 1 < vMsgOffsets.size(); i += 2, msgNum++, idx++) {
-		const char *const pMsgName = reinterpret_cast<const char*>(&pOffTbl[vMsgOffsets[i]]);
-		// TODO: Verify alignment.
-		const char16_t *pMsgText = reinterpret_cast<const char16_t*>(&pOffTbl[vMsgOffsets[i+1]]);
+	for (const WTXT_MsgPointer *p = pOffTbl; p < pOffTblEnd; p++, idx++) {
+		WTXT_MsgPointer ptr = *p;
+		if (!hostMatchesFileEndianness) {
+			ptr.msg_id_name_offset	= __swab32(ptr.msg_id_name_offset);
+			ptr.msg_offset		= __swab32(ptr.msg_offset);
+			ptr.placeholder_offset	= __swab32(ptr.placeholder_offset);
+		}
 
-		if (pMsgName >= reinterpret_cast<const char*>(pOffTblEnd)) {
+		const char *const pMsgName = reinterpret_cast<const char*>(&pOffTblU8[ptr.msg_id_name_offset]);
+		// TODO: Verify alignment.
+		const char16_t *pMsgText = reinterpret_cast<const char16_t*>(&pOffTblU8[ptr.msg_offset]);
+
+		const char *const pPlaceholderName = (ptr.placeholder_offset != 0
+			? reinterpret_cast<const char*>(&pOffTblU8[ptr.placeholder_offset])
+			: nullptr);
+
+		if (pMsgName >= reinterpret_cast<const char*>(pOffTblEndU8)) {
 			// MsgName is out of range.
 			// TODO: Store more comprehensive error information.
 			break;
-		} else if (pMsgText >= reinterpret_cast<const char16_t*>(pOffTblEnd)) {
+		} else if (pMsgText >= reinterpret_cast<const char16_t*>(pOffTblEndU8)) {
 			// MsgText is out of range.
+			// TODO: Store more comprehensive error information.
+			break;
+		} else if (pPlaceholderName && pPlaceholderName >= reinterpret_cast<const char*>(pOffTblEndU8)) {
+			// PlaceholderName is out of range.
 			// TODO: Store more comprehensive error information.
 			break;
 		}
 
 		// Get the message name.
-		size_t msgNameLen = strnlen(pMsgName, reinterpret_cast<const char*>(pOffTblEnd) - pMsgName);
+		size_t msgNameLen = strnlen(pMsgName, reinterpret_cast<const char*>(pOffTblEndU8) - pMsgName);
 		string msgName = cpN_to_utf8(932, pMsgName, static_cast<int>(msgNameLen));
 
-		msgText.clear();
-		if (vMsgOffsets[i+1] >= vMsgOffsets[0]) {
-			// WARNING: The message text is within the message name table.
-			// This string doesn't have message text.
-			// Seen in msg_town_mission_shadow.j.mst, message 126:
-			// "rgba(255,153,0),color,rgba(255,153,0),color,rgba(255,153,0),color,rgba(255,153,0),color"
-			// TODO: Does this need to be stored like this in order to function properly?
-			i--;
+		// Find the end of the message text.
+		size_t len = 0;
+		if (m_isBigEndian) {
+			for (; pMsgText < reinterpret_cast<const char16_t*>(pOffTblEndU8); pMsgText++) {
+				if (*pMsgText == cpu_to_be16(0)) {
+					// Found the NULL terminator.
+					break;
+				}
+				msgText += static_cast<char16_t>(be16_to_cpu(*pMsgText));
+			}
 		} else {
-			// Find the end of the message text.
-			size_t len = 0;
-			if (m_isBigEndian) {
-				for (; pMsgText < reinterpret_cast<const char16_t*>(pOffTblEnd); pMsgText++) {
-					if (*pMsgText == cpu_to_be16(0)) {
-						// Found the NULL terminator.
-						break;
-					}
-					msgText += static_cast<char16_t>(be16_to_cpu(*pMsgText));
+			for (; pMsgText < reinterpret_cast<const char16_t*>(pOffTblEndU8); pMsgText++) {
+				if (*pMsgText == cpu_to_le16(0)) {
+					// Found the NULL terminator.
+					break;
 				}
-			} else {
-				for (; pMsgText < reinterpret_cast<const char16_t*>(pOffTblEnd); pMsgText++) {
-					if (*pMsgText == cpu_to_le16(0)) {
-						// Found the NULL terminator.
-						break;
-					}
-					msgText += static_cast<char16_t>(le16_to_cpu(*pMsgText));
-				}
+				msgText += static_cast<char16_t>(le16_to_cpu(*pMsgText));
 			}
 		}
 
@@ -339,6 +328,13 @@ int Mst::loadMST(FILE *fp)
 		// NOTE: Saving entries for empty strings, too.
 		m_vStrTbl.emplace_back(std::make_pair(msgName, std::move(msgText)));
 		m_vStrLkup.insert(std::make_pair(std::move(msgName), idx));
+
+		// Get the placeholder name, if specified.
+		if (pPlaceholderName) {
+			size_t placeholderNameLen = strnlen(pPlaceholderName, reinterpret_cast<const char*>(pOffTblEndU8) - pPlaceholderName);
+			string placeholderName = cpN_to_utf8(932, pPlaceholderName, static_cast<int>(placeholderNameLen));
+			m_mapPlaceholder.insert(std::make_pair(idx, std::move(placeholderName)));
+		}
 	}
 
 	// We're done here.
@@ -401,6 +397,7 @@ int Mst::loadXML(FILE *fp, std::vector<std::string> *pVecErrs)
 	// Clear the current string tables.
 	m_name.clear();
 	m_vStrTbl.clear();
+	m_mapPlaceholder.clear();
 	m_vStrLkup.clear();
 	m_vDiffOffTbl.clear();
 	m_version = '1';
@@ -988,19 +985,28 @@ int Mst::saveXML(FILE *fp) const
 		}
 	}
 
-	size_t i = 0;
-	for (auto iter = m_vStrTbl.cbegin(); iter != m_vStrTbl.cend(); ++iter, ++i) {
+	size_t idx = 0;
+	for (auto iter = m_vStrTbl.cbegin(); iter != m_vStrTbl.cend(); ++iter, ++idx) {
 		const uint8_t *const pDiffOffTbl_first = pDiffOffTbl;
 
 		XMLElement *const xml_msg = xml.NewElement("message");
 		xml_mst06->InsertEndChild(xml_msg);
-		xml_msg->SetAttribute("index", static_cast<unsigned int>(i));
+		xml_msg->SetAttribute("index", static_cast<unsigned int>(idx));
 		xml_msg->SetAttribute("name", iter->first.c_str());
 		// TODO: Make sure that offset_diff isn't ~0U.
 		offset_diff = getNextDiffOff(&pDiffOffTbl, pDiffOffTblEnd);
 
 		if (!iter->second.empty()) {
 			xml_msg->SetText(escape(utf16_to_utf8(iter->second)).c_str());
+			// TODO: Make sure that offset_diff isn't ~0U.
+			offset_diff = getNextDiffOff(&pDiffOffTbl, pDiffOffTblEnd);
+		}
+
+		// Is there placeholder text?
+		auto plc_iter = m_mapPlaceholder.find(idx);
+		if (plc_iter != m_mapPlaceholder.end()) {
+			// Save the placeholder text as an attribute.
+			xml_msg->SetAttribute("placeholder", escape(plc_iter->second).c_str());
 			// TODO: Make sure that offset_diff isn't ~0U.
 			offset_diff = getNextDiffOff(&pDiffOffTbl, pDiffOffTblEnd);
 		}
