@@ -1044,6 +1044,12 @@ void Mst::dump(void) const
 		// Convert the message text from UTF-16 to UTF-8.
 		// TODO: Escape newlines and form feeds?
 		printf("%s\n", utf16_to_utf8(iter->second).c_str());
+
+		// Is there a placeholder name associated with this message?
+		auto plc_iter = m_mapPlaceholder.find(idx);
+		if (plc_iter != m_mapPlaceholder.end()) {
+			printf("*** Placeholder: %s\n", plc_iter->second.c_str());
+		}
 	}
 }
 
