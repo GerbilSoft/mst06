@@ -566,6 +566,12 @@ int Mst::loadXML(FILE *fp, std::vector<std::string> *pVecErrs)
 
 		// Add the message to the lookup table.
 		m_vStrLkup.insert(std::make_pair(msg_name, index));
+
+		// Placeholder name, if any.
+		const char *const placeholder_name = xml_msg->Attribute("placeholder");
+		if (placeholder_name) {
+			m_mapPlaceholder.insert(std::make_pair(index, placeholder_name));
+		}
 	}
 
 	// TODO: Check for missing message indexes.
