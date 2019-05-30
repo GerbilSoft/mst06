@@ -74,37 +74,32 @@ The message table name offset points to the name of the message table,
 encoded as Shift-JIS (code page 932).
 
 Following the WTXT header is an array of message table pointers. This
-table has the following general format for each entry:
+table has the following format for each entry:
 
 ```c
 typedef struct PACKED _WTXT_MsgPointer {
-	uint32_t msg_id_name_offset;	// [0x000] Offset of message name.
-	uint32_t msg_offset;		// [0x004] Offset of message.
-	uint32_t zero;			// [0x008] Zero. (NOTE: May not be present!)
+	uint32_t name_offset;		// [0x000] Offset of message name. (Shift-JIS)
+	uint32_t text_offset;		// [0x004] Offset of message text. (UTF-16)
+	uint32_t placeholder_offset;	// [0x008] If non-zero, offset of placeholder icon name. (Shift-JIS)
 } WTXT_MsgPointer;
 ```
 
-* `msg_id_name_offset`: Offset of the message name. Encoded as Shift-JIS.
-* `msg_offset`: Offset of the message text. Encoded as UTF-16.
+* `name_offset`: Offset of the message name. Encoded as Shift-JIS.
+* `text_offset`: Offset of the message text. Encoded as UTF-16.
   Endianness depends on file endianness.
-* `zero`: Unused. **HOWEVER**, this field may actually be missing entirely.
+* `placeholder_offset`: If non-zero, this indicates the offset of the
+  placeholder offset. Usually this is a button icon name, though sometimes
+  it can be an "rgb" string. Encoded as Shift-JIS.
 
-`msg_tbl_count` is equal to the total number of strings in the offset table,
-assuming each string entry is exactly 12 bytes. For an unknown reason, many
-strings are missing the `zero` field, so this isn't entirely accurate. Also,
-some strings might only have a name and no text. The easiest way to determine
-this is by checking if `msg_offset >= msg_tbl_name_offset`. This works because
-the message text is all stored in one block, and the message names are stored
-in one block *after* the message text.
-
-Due to the occasionally missing `msg_offset` and `zero` fields, it is
-impossible to accurately determine which string is which by simply reading the
-WTXT offsets. The differential offset table must be parsed first.
+`msg_tbl_count` is equal to the total number of strings in the offset table.
 
 ## Differential Offset Table
 
-In Sonic '06 files, this usually looks like "ABABABABABABAB", though sometimes
-there's strings of "AAAAAAAA". Here's how to decode it.
+In Sonic '06 files, the differential offset table is present and allows for
+parsing the main offset table while skipping zero offsets, e.g. for strings
+that don't have placeholder names. This table usually looks like
+"ABABABABABABAB", though in cases where a placeholder name is present, there
+may be sections of "AAAAAAAA". Here's how to decode it.
 
 Initial file position: 0x20 (32; size of header)
 
@@ -125,18 +120,15 @@ For each non-zero byte in the offset table:
   * Endianness depends on file endianness.
 * Repeat to determine all real offsets until the end of the offset table is reached.
 
-When parsing the offsets, some notes to keep in mind:
-* The first offset is always the string table name, encoded in Shift-JIS.
-* After the first offset, strings are stored using pairs of offsets:
-  * String name (encoded in Shift-JIS)
-  * String text (encoded in UTF-16)
-* If the string text's offset is >= the offset of the string table name,
-  this string doesn't actually have text. The string text offset should
-  be considered the string name offset of the *next* message.
-
 The end of the string table is aligned to a DWORD boundary, so extra `00`
 bytes may be present. These can be ignored. (If writing an MST file, the
 `00` bytes must be included for alignment, if necessary.)
+
+This table is basically redundant, since you can just read the main offset
+table to get the correct information. Sonic '06 **requires** this table to
+be correct, though; otherwise, it will crash. `mst06` treats this table as
+write-only; that is, it's not used when parsing MST files, but it *is* written
+when converting XML to MST.
 
 ## References
 
