@@ -43,6 +43,9 @@ using std::vector;
 #include <tinyxml2.h>
 using namespace tinyxml2;
 
+// Invalid offset value.
+#define INVALID_OFFSET ~0U
+
 Mst::Mst()
 	: m_version('1')
 	, m_isBigEndian(true)
@@ -53,7 +56,7 @@ Mst::Mst()
  * @param ppDiffOffTbl		[in/out] Pointer to current pointer into the differential offset table.
  * 				         This is adjusted based on the differential offset data.
  * @param pDiffOffTblEnd	[in] Pointer to the end of the differential offset table.
- * @return Offset value, or ~0U if end of table.
+ * @return Offset value, or INVALID_OFFSET if end of table.
  */
 uint32_t Mst::getNextDiffOff(const uint8_t **ppDiffOffTbl, const uint8_t *const pDiffOffTblEnd)
 {
@@ -61,7 +64,7 @@ uint32_t Mst::getNextDiffOff(const uint8_t **ppDiffOffTbl, const uint8_t *const 
 	switch (**ppDiffOffTbl >> 6) {
 		case 0:
 			// 0 bits long. End of offset table.
-			offset_diff = ~0U;
+			offset_diff = INVALID_OFFSET;
 			break;
 		case 1:
 			// 6 bits long.
@@ -77,7 +80,7 @@ uint32_t Mst::getNextDiffOff(const uint8_t **ppDiffOffTbl, const uint8_t *const 
 			if (*ppDiffOffTbl + 2 >= pDiffOffTblEnd) {
 				// Out of bounds!
 				// TODO: Store more comprehensive error information.
-				offset_diff = ~0U;
+				offset_diff = INVALID_OFFSET;
 				break;
 			}
 			offset_diff = ((*ppDiffOffTbl[0] & 0x3F) << 10) |
@@ -92,7 +95,7 @@ uint32_t Mst::getNextDiffOff(const uint8_t **ppDiffOffTbl, const uint8_t *const 
 			if (*ppDiffOffTbl + 4 >= pDiffOffTblEnd) {
 				// Out of bounds!
 				// TODO: Store more comprehensive error information.
-				offset_diff = ~0U;
+				offset_diff = INVALID_OFFSET;
 				break;
 			}
 			offset_diff = ((*ppDiffOffTbl[0] & 0x3F) << 26) |
@@ -273,14 +276,14 @@ int Mst::loadMST(FILE *fp)
 	for (const WTXT_MsgPointer *p = pOffTbl; p < pOffTblEnd; p++, idx++) {
 		WTXT_MsgPointer ptr = *p;
 		if (!hostMatchesFileEndianness) {
-			ptr.msg_id_name_offset	= __swab32(ptr.msg_id_name_offset);
-			ptr.msg_offset		= __swab32(ptr.msg_offset);
+			ptr.name_offset	= __swab32(ptr.name_offset);
+			ptr.text_offset		= __swab32(ptr.text_offset);
 			ptr.placeholder_offset	= __swab32(ptr.placeholder_offset);
 		}
 
-		const char *const pMsgName = reinterpret_cast<const char*>(&pOffTblU8[ptr.msg_id_name_offset]);
+		const char *const pMsgName = reinterpret_cast<const char*>(&pOffTblU8[ptr.name_offset]);
 		// TODO: Verify alignment.
-		const char16_t *pMsgText = reinterpret_cast<const char16_t*>(&pOffTblU8[ptr.msg_offset]);
+		const char16_t *pMsgText = reinterpret_cast<const char16_t*>(&pOffTblU8[ptr.text_offset]);
 
 		const char *const pPlaceholderName = (ptr.placeholder_offset != 0
 			? reinterpret_cast<const char*>(&pOffTblU8[ptr.placeholder_offset])
@@ -619,9 +622,6 @@ int Mst::saveMST(FILE *fp) const
 {
 	if (m_vStrTbl.empty()) {
 		return -ENODATA;	// TODO: Better error code?
-	} else if (m_vDiffOffTbl.empty()) {
-		// FIXME: How to generate differential offsets properly?
-		return -EIO;		// TODO: Better error code?
 	}
 
 	// MST header.
@@ -644,36 +644,30 @@ int Mst::saveMST(FILE *fp) const
 	// NOTE: vOffsetTbl will have offsets relative to the
 	// beginning of each vMsgNames and vMsgText in the first run.
 	// The base addresses will be added in the second run.
-	vector<uint32_t> vOffsetTbl;	// Primary offset table.
-	vector<uint8_t> vOffsetTblType;	// Type of entry for each offset: 0=zero, 1=text, 2=name
+	vector<WTXT_MsgPointer> vOffsetTbl;	// Primary offset table.
+						// NOTE: If any field contains INVALID_OFFSET,
+						// it should be written as an actual zero.
 	vector<char16_t> vMsgText;	// Message text.
 	vector<char> vMsgNames;		// Message names.
-	const uint8_t *pDiffOffTbl = m_vDiffOffTbl.data();	// Differential offset table.
-	const uint8_t *const pDiffOffTblEnd = pDiffOffTbl + m_vDiffOffTbl.size();
+
+	// Differential offset table.
+	// This usually consists of 'AB' for strings with names and text,
+	// or 'AAA' for strings with names, text, and placeholders.
+	vector<uint8_t> vDiffOffTbl;
 
 	// String deduplication for vMsgNames.
 	// TODO: Do we need to deduplicate *all* strings, or just the string table name.
 	unordered_map<string, size_t> map_nameDedupe;
 
 	// TODO: Better size reservations.
-	vOffsetTbl.reserve(m_vStrTbl.size() * 3);
-	vOffsetTblType.reserve(m_vStrTbl.size() * 3);
+	vOffsetTbl.reserve(m_vStrTbl.size());
 	vMsgText.reserve(m_vStrTbl.size() * 32);
 	vMsgNames.reserve(m_vStrTbl.size() * 32);
-
-	// For strings with both name and text, three offsets will be stored:
-	// - Name offset
-	// - Text offset
-	// - Zero
-
-	// For strings with only name, only the name offset will be stored.
-	// TODO: Compare to MST files and see if maybe a zero is stored too?
-	uint32_t offset_diff;
+	vDiffOffTbl.reserve(((((m_vStrTbl.size() * 2) + m_mapPlaceholder.size())) + 3) & ~(size_t)(3U));
 
 	// String table name.
 	// NOTE: While this is part of the names table, the offset is stored
-	// in the WTXT header, *not* the offset table, and it's not included
-	// in the differential offset table.
+	// in the WTXT header, *not* the offset table.
 	{
 		if (!m_name.empty()) {
 			const size_t name_size = m_name.size();
@@ -694,26 +688,20 @@ int Mst::saveMST(FILE *fp) const
 		// Differential offset table initialization:
 		// - 'A': Skip "WTXT"
 		// - 'B': Skip string table name offset and count.
-		offset_diff = getNextDiffOff(&pDiffOffTbl, pDiffOffTblEnd);
-		if (offset_diff != 4) {
-			// Invalid differential offset for the string table name...
-			return -EIO;	// TODO: Better error code?
-		}
-		offset_diff = getNextDiffOff(&pDiffOffTbl, pDiffOffTblEnd);
-		if (offset_diff != 8) {
-			// Invalid differential offset for the string table name...
-			return -EIO;	// TODO: Better error code?
-		}
+		vDiffOffTbl.push_back('A');
+		vDiffOffTbl.push_back('B');
 	}
 
 	// Host endianness.
 	static const bool hostIsBigEndian = (SYS_BYTEORDER == SYS_BIG_ENDIAN);
 	const bool hostMatchesFileEndianness = (hostIsBigEndian == m_isBigEndian);
 
-	size_t i = 0;
-	for (auto iter = m_vStrTbl.cbegin(); iter != m_vStrTbl.cend(); ++iter, ++i) {
-		size_t name_pos = vMsgNames.size();
-		const size_t text_pos = vMsgText.size();
+	size_t idx = 0;
+	for (auto iter = m_vStrTbl.cbegin(); iter != m_vStrTbl.cend(); ++iter, ++idx) {
+		WTXT_MsgPointer ptr;
+		ptr.name_offset = INVALID_OFFSET;
+		ptr.text_offset = INVALID_OFFSET;
+		ptr.placeholder_offset = INVALID_OFFSET;
 
 		// Copy the message name.
 		if (!iter->first.empty()) {
@@ -723,9 +711,10 @@ int Mst::saveMST(FILE *fp) const
 			auto map_iter = map_nameDedupe.find(iter->first);
 			if (map_iter != map_nameDedupe.end()) {
 				// Found the string.
-				name_pos = map_iter->second;
+				ptr.name_offset = static_cast<uint32_t>(map_iter->second);
 			} else {
 				// String not found, so cannot dedupe.
+				ptr.name_offset = static_cast<uint32_t>(vMsgNames.size());
 
 				// Convert to Shift-JIS first.
 				// TODO: Show warnings for strings with characters that
@@ -734,46 +723,31 @@ int Mst::saveMST(FILE *fp) const
 				// Copy the message name into the vector.
 				const size_t name_size = sjis_str.size();
 				// +1 for NULL terminator.
-				vMsgNames.resize(name_pos + name_size + 1);
-				memcpy(&vMsgNames[name_pos], sjis_str.c_str(), name_size+1);
+				vMsgNames.resize(ptr.name_offset + name_size + 1);
+				memcpy(&vMsgNames[ptr.name_offset], sjis_str.c_str(), name_size+1);
 
 				// Add the string to the deduplication map.
-				map_nameDedupe.insert(std::make_pair(iter->first, name_pos));
+				map_nameDedupe.insert(std::make_pair(iter->first, ptr.name_offset));
 			}
 		} else {
 			// Empty message name...
 			// TODO: Report a warning.
 			char buf[64];
-			int len = snprintf(buf, sizeof(buf), "XXX_MSG_%zu", i);
+			int len = snprintf(buf, sizeof(buf), "XXX_MSG_%zu", idx);
 			// +1 for NULL terminator.
-			vMsgNames.resize(name_pos + len + 1);
-			memcpy(&vMsgNames[name_pos], buf, len+1);
+			vMsgNames.resize(ptr.name_offset + len + 1);
+			memcpy(&vMsgNames[ptr.name_offset], buf, len+1);
 		}
-		assert(name_pos <= 16U*1024*1024);
-		vOffsetTbl.push_back(static_cast<uint32_t>(name_pos));
-		vOffsetTblType.push_back(2);	// Name
-
-		// If the next differential offset is >4, skip some bytes in the offset table.
-		// NOTE: Offset is always a multiple of 4.
-		offset_diff = getNextDiffOff(&pDiffOffTbl, pDiffOffTblEnd);
-		/* TODO: Handle this?
-		if (offset_diff < 4) {
-			// Shouldn't be less than 4!
-			return -EIO;	// TODO: Better error code?
-		} */
-		if (offset_diff == ~0U) {
-			// End of offset table.
-			break;
-		}
-		for (; offset_diff > 4; offset_diff -= 4) {
-			vOffsetTbl.push_back(0);
-			vOffsetTblType.push_back(0);    // Zero
-		}
+		assert(ptr.name_offset <= 16U*1024*1024);
 
 		// Copy the message text.
 		// TODO: Add support for writing little-endian files?
 		if (!iter->second.empty()) {
 			// Copy the message text into the vector.
+			// NOTE: c16pos is in units of char16_t, whereas
+			// ptr.text_offset is in bytes.
+			const uint32_t c16pos = static_cast<uint32_t>(vMsgText.size());
+			ptr.text_offset = c16pos * sizeof(char16_t);
 			u16string msg_text;
 			if (hostMatchesFileEndianness) {
 				// Host endianness matches file endianness.
@@ -787,41 +761,77 @@ int Mst::saveMST(FILE *fp) const
 			}
 
 			const size_t msg_size = msg_text.size();
-			vMsgText.resize(text_pos + msg_size + 1);
+			vMsgText.resize(c16pos + msg_size + 1);
 			// +1 for NULL terminator.
-			memcpy(&vMsgText[text_pos], msg_text.c_str(), (msg_size+1) * sizeof(char16_t));
+			memcpy(&vMsgText[c16pos], msg_text.c_str(), (msg_size+1) * sizeof(char16_t));
 
-			// NOTE: Text offset must be mutliplied by sizeof(char16_t),
+			// NOTE: Text offset must be multiplied by sizeof(char16_t),
 			// since vMsgText is char16_t, but vOffsetTbl uses bytes.
-			assert(text_pos <= 16U*1024*1024);
-			vOffsetTbl.push_back(static_cast<uint32_t>(text_pos * sizeof(char16_t)));
-			vOffsetTblType.push_back(1);    // Text
+			assert(ptr.text_offset <= 16U*1024*1024);
+		}
 
-			// If the next differential offset is >4, skip some bytes in the offset table.
-			// NOTE: Offset is always a multiple of 4.
-			offset_diff = getNextDiffOff(&pDiffOffTbl, pDiffOffTblEnd);
-			/* TODO: Handle this?
-			if (offset_diff < 4) {
-				// Shouldn't be less than 4!
-				return -EIO;	// TODO: Better error code?
-			} */
-			if (offset_diff == ~0U) {
-				// End of offset table.
-				break;
-			}
-			for (; offset_diff > 4; offset_diff -= 4) {
-				vOffsetTbl.push_back(0);
-				vOffsetTblType.push_back(0);    // Zero
+		// Do we have a placeholder name?
+		auto plc_iter = m_mapPlaceholder.find(idx);
+		if (plc_iter != m_mapPlaceholder.end()) {
+			// Is the name already present?
+			// This usually occurs if a string has the same name as the string table.
+			// TODO: Do we need to deduplicate *all* strings, or just the string table name.
+			auto map_iter = map_nameDedupe.find(plc_iter->second);
+			if (map_iter != map_nameDedupe.end()) {
+				// Found the string.
+				ptr.placeholder_offset = static_cast<uint32_t>(map_iter->second);
+			} else {
+				// String not found, so cannot dedupe.
+				ptr.placeholder_offset = static_cast<uint32_t>(vMsgNames.size());
+
+				// Convert to Shift-JIS first.
+				// TODO: Show warnings for strings with characters that
+				// can't be converted to Shift-JIS?
+				const string sjis_str = utf8_to_cpN(932, plc_iter->second.data(), (int)plc_iter->second.size());
+				// Copy the message name into the vector.
+				const size_t name_size = sjis_str.size();
+				// +1 for NULL terminator.
+				vMsgNames.resize(ptr.placeholder_offset + name_size + 1);
+				memcpy(&vMsgNames[ptr.placeholder_offset], sjis_str.c_str(), name_size+1);
+
+				// Add the string to the deduplication map.
+				map_nameDedupe.insert(std::make_pair(plc_iter->second, ptr.placeholder_offset));
 			}
 		}
+
+		// Add differential offset values.
+		assert(ptr.name_offset != INVALID_OFFSET);
+		assert(ptr.text_offset != INVALID_OFFSET);
+		if (ptr.name_offset != INVALID_OFFSET && ptr.text_offset != INVALID_OFFSET) {
+			if (ptr.placeholder_offset != INVALID_OFFSET) {
+				// Placeholder name is present.
+				vDiffOffTbl.push_back('A');
+				vDiffOffTbl.push_back('A');
+				vDiffOffTbl.push_back('A');
+			} else {
+				// Placeholder name is NOT present.
+				vDiffOffTbl.push_back('A');
+				vDiffOffTbl.push_back('B');
+			}
+		} else {
+			// ERROR: Name and text must be present...
+			// TODO: More comprehensive error reporting.
+			return -EIO;
+		}
+
+		// Add the offsets to the offset table.
+		vOffsetTbl.push_back(ptr);
 	}
 
-	// Offset table always ends with an extra zero.
-	vOffsetTbl.push_back(0);
-	vOffsetTblType.push_back(0);	// Zero
+	// Remove the last differential offset table entry,
+	// since it's EOF.
+	assert(!vDiffOffTbl.empty());
+	if (!vDiffOffTbl.empty()) {
+		vDiffOffTbl.resize(vDiffOffTbl.size()-1);
+	}
 
 	// Determine the message table base addresses.
-	const uint32_t text_tbl_base = static_cast<uint32_t>(sizeof(wtxt_header) + (vOffsetTbl.size() * sizeof(uint32_t)));
+	const uint32_t text_tbl_base = static_cast<uint32_t>(sizeof(wtxt_header) + (vOffsetTbl.size() * sizeof(WTXT_MsgPointer)));
 	const uint32_t name_tbl_base = static_cast<uint32_t>(text_tbl_base + (vMsgText.size() * sizeof(char16_t)));
 
 	// Differential offset table must be DWORD-aligned for both
@@ -832,38 +842,43 @@ int Mst::saveMST(FILE *fp) const
 		vMsgNames.resize(vMsgNames.size() + (4 - (doff_tbl_offset & 3)));
 		doff_tbl_offset = static_cast<uint32_t>(name_tbl_base + vMsgNames.size());
 	}
-	const uint32_t doff_tbl_length = static_cast<uint32_t>(m_vDiffOffTbl.size());
+	uint32_t doff_tbl_length = static_cast<uint32_t>(vDiffOffTbl.size());
+	if (doff_tbl_length & 3) {
+		// Need to align the size to a multiple of 4.
+		vDiffOffTbl.resize((vDiffOffTbl.size() + 3) & ~(size_t)(3U));
+		doff_tbl_length = static_cast<uint32_t>(vDiffOffTbl.size());
+	}
 
 	// Update WTXT_Header.
 	wtxt_header.msg_tbl_name_offset = cpu_to_be32(name_tbl_base);
-	// TODO: Make sure the offset table's size is a multiple of 3 uint32_t's. (12 bytes)
-	const uint32_t msg_tbl_count = static_cast<uint32_t>(vOffsetTbl.size() / 3);
+	const uint32_t msg_tbl_count = static_cast<uint32_t>(vOffsetTbl.size());
 	wtxt_header.msg_tbl_count = cpu_to_be32(msg_tbl_count);
 
 	// Update the offset table base addresses.
-	i = 0;
-	for (auto iter = vOffsetTbl.begin(); iter != vOffsetTbl.end(); ++iter, ++i) {
-		switch (vOffsetTblType[i]) {
-			case 0:
-				// Zero entry.
-				break;
-			case 1:
-				// Text entry.
-				*iter += text_tbl_base;
-				break;
-			case 2:
-				// Name entry.
-				*iter += name_tbl_base;
-				break;
-			default:
-				// Invalid entry.
-				assert(!"Unexpected offset table type.");
-				break;
+	for (auto iter = vOffsetTbl.begin(); iter != vOffsetTbl.end(); ++iter) {
+		if (iter->name_offset == INVALID_OFFSET) {
+			iter->name_offset = 0;
+		} else {
+			iter->name_offset += name_tbl_base;
+		}
+
+		if (iter->text_offset == INVALID_OFFSET) {
+			iter->text_offset = 0;
+		} else {
+			iter->text_offset += text_tbl_base;
+		}
+
+		if (iter->placeholder_offset == INVALID_OFFSET) {
+			iter->placeholder_offset = 0;
+		} else {
+			iter->placeholder_offset += name_tbl_base;
 		}
 
 		if (!hostMatchesFileEndianness) {
-			// Byteswap the offset.
-			*iter = __swab32(*iter);
+			// Byteswap the offsets.
+			iter->name_offset		= __swab32(iter->name_offset);
+			iter->text_offset		= __swab32(iter->text_offset);
+			iter->placeholder_offset	= __swab32(iter->placeholder_offset);
 		}
 	}
 
@@ -892,7 +907,7 @@ int Mst::saveMST(FILE *fp) const
 		return (errno ? -errno : -EIO);
 	}
 	errno = 0;
-	size = fwrite(vOffsetTbl.data(), sizeof(uint32_t), vOffsetTbl.size(), fp);
+	size = fwrite(vOffsetTbl.data(), sizeof(WTXT_MsgPointer), vOffsetTbl.size(), fp);
 	if (size != vOffsetTbl.size()) {
 		return (errno ? -errno : -EIO);
 	}
@@ -907,8 +922,8 @@ int Mst::saveMST(FILE *fp) const
 		return (errno ? -errno : -EIO);
 	}
 	errno = 0;
-	size = fwrite(m_vDiffOffTbl.data(), 1, m_vDiffOffTbl.size(), fp);
-	if (size != m_vDiffOffTbl.size()) {
+	size = fwrite(vDiffOffTbl.data(), 1, vDiffOffTbl.size(), fp);
+	if (size != vDiffOffTbl.size()) {
 		return (errno ? -errno : -EIO);
 	}
 
@@ -999,12 +1014,12 @@ int Mst::saveXML(FILE *fp) const
 		xml_mst06->InsertEndChild(xml_msg);
 		xml_msg->SetAttribute("index", static_cast<unsigned int>(idx));
 		xml_msg->SetAttribute("name", iter->first.c_str());
-		// TODO: Make sure that offset_diff isn't ~0U.
+		// TODO: Make sure that offset_diff isn't INVALID_OFFSET.
 		offset_diff = getNextDiffOff(&pDiffOffTbl, pDiffOffTblEnd);
 
 		if (!iter->second.empty()) {
 			xml_msg->SetText(escape(utf16_to_utf8(iter->second)).c_str());
-			// TODO: Make sure that offset_diff isn't ~0U.
+			// TODO: Make sure that offset_diff isn't INVALID_OFFSET.
 			offset_diff = getNextDiffOff(&pDiffOffTbl, pDiffOffTblEnd);
 		}
 
@@ -1013,7 +1028,7 @@ int Mst::saveXML(FILE *fp) const
 		if (plc_iter != m_mapPlaceholder.end()) {
 			// Save the placeholder text as an attribute.
 			xml_msg->SetAttribute("placeholder", escape(plc_iter->second).c_str());
-			// TODO: Make sure that offset_diff isn't ~0U.
+			// TODO: Make sure that offset_diff isn't INVALID_OFFSET.
 			offset_diff = getNextDiffOff(&pDiffOffTbl, pDiffOffTblEnd);
 		}
 
@@ -1349,7 +1364,7 @@ int Mst::unescapeDiffOffTbl(std::vector<uint8_t> &vDiffOffTbl, const char *s_dif
 						buf[0] = s_diffOffTbl[2];
 						buf[1] = s_diffOffTbl[3];
 						buf[2] = 0;
-						vDiffOffTbl.push_back(strtoul(buf, nullptr, 16));
+						vDiffOffTbl.push_back(static_cast<uint32_t>(strtoul(buf, nullptr, 16)));
 						s_diffOffTbl += 3;
 					}
 					break;

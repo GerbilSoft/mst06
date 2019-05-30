@@ -56,6 +56,7 @@ SET(mst06_SRCS
 SET(mst06_H
 	byteorder.h
 	byteswap.h
+	common.h
 	mst_structs.h
 	Mst.hpp
 	TextFuncs.hpp

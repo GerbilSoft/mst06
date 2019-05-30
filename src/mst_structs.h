@@ -9,15 +9,8 @@
 #ifndef __MST06_MST_STRUCTS_H__
 #define __MST06_MST_STRUCTS_H__
 
-#ifndef PACKED
-# ifdef __GNUC__
-#  define PACKED __attribute__((packed))
-# else
-#  define PACKED
-# endif
-#endif /* !PACKED */
-
 #include <stdint.h>
+#include "common.h"
 
 #pragma pack(1)
 
@@ -42,6 +35,9 @@ typedef struct PACKED _MST_Header {
 	uint32_t bina_magic;		// [0x018] 'BINA'
 	uint32_t unk_zero4;		// [0x01C]
 } MST_Header;
+ASSERT_STRUCT(MST_Header, 32);
+
+#pragma pack()
 
 /**
  * WTXT header.
@@ -51,22 +47,22 @@ typedef struct PACKED _MST_Header {
  * in the MST header.
  */
 #define WTXT_MAGIC 'WTXT'
-typedef struct PACKED _WTXT_Header {
+typedef struct _WTXT_Header {
 	uint32_t magic;			// [0x000] 'WTXT'
 	uint32_t msg_tbl_name_offset;	// [0x004] Offset of message table name.
 	uint32_t msg_tbl_count;		// [0x008] Number of strings in the message table.
 } WTXT_Header;
+ASSERT_STRUCT(WTXT_Header, 3*sizeof(uint32_t));
 
 /**
  * Following WTXT_Header is an array of message pointers.
  * Messages are encded as UTF-16BE.
  */
-typedef struct PACKED _WTXT_MsgPointer {
-	uint32_t msg_id_name_offset;	// [0x000] Offset of message name. (Shift-JIS)
-	uint32_t msg_offset;		// [0x004] Offset of message. (UTF-16)
+typedef struct _WTXT_MsgPointer {
+	uint32_t name_offset;		// [0x000] Offset of message name. (Shift-JIS)
+	uint32_t text_offset;		// [0x004] Offset of message text. (UTF-16)
 	uint32_t placeholder_offset;	// [0x008] If non-zero, offset of placeholder icon name. (Shift-JIS)
 } WTXT_MsgPointer;
-
-#pragma pack()
+ASSERT_STRUCT(WTXT_MsgPointer, 3*sizeof(uint32_t));
 
 #endif /* __MST06_MST_STRUCTS_H__ */
