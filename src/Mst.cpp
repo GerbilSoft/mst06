@@ -877,6 +877,7 @@ int Mst::saveXML(const TCHAR *filename) const
 	}
 	int ret = saveXML(f_xml);
 	fclose(f_xml);
+	// TODO: Delete the XML file on error?
 	return ret;
 }
 
