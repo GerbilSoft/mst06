@@ -667,33 +667,34 @@ int Mst::saveMST(FILE *fp) const
 
 		// Copy the message text.
 		// TODO: Add support for writing little-endian files?
-		if (!iter->second.empty()) {
-			// Copy the message text into the vector.
-			// NOTE: c16pos is in units of char16_t, whereas
-			// ptr.text_offset is in bytes.
-			const uint32_t c16pos = static_cast<uint32_t>(vMsgText.size());
-			ptr.text_offset = c16pos * sizeof(char16_t);
-			u16string msg_text;
-			if (hostMatchesFileEndianness) {
-				// Host endianness matches file endianness.
-				// No conversion is necessary.
-				// TODO: Can we eliminate this copy?
-				msg_text = iter->second;
-			} else {
-				// Host byteorder does not match file endianness.
-				// Swap it.
+
+		// Copy the message text into the vector.
+		// NOTE: c16pos is in units of char16_t, whereas
+		// ptr.text_offset is in bytes.
+		const uint32_t c16pos = static_cast<uint32_t>(vMsgText.size());
+		ptr.text_offset = c16pos * sizeof(char16_t);
+		u16string msg_text;
+		if (hostMatchesFileEndianness) {
+			// Host endianness matches file endianness.
+			// No conversion is necessary.
+			// TODO: Can we eliminate this copy?
+			msg_text = iter->second;
+		} else {
+			// Host byteorder does not match file endianness.
+			// Swap it.
+			if (!iter->second.empty()) {
 				msg_text = utf16_bswap(iter->second.data(), iter->second.size());
 			}
-
-			const size_t msg_size = msg_text.size();
-			vMsgText.resize(c16pos + msg_size + 1);
-			// +1 for NULL terminator.
-			memcpy(&vMsgText[c16pos], msg_text.c_str(), (msg_size+1) * sizeof(char16_t));
-
-			// NOTE: Text offset must be multiplied by sizeof(char16_t),
-			// since vMsgText is char16_t, but vOffsetTbl uses bytes.
-			assert(ptr.text_offset <= 16U*1024*1024);
 		}
+
+		const size_t msg_size = msg_text.size();
+		vMsgText.resize(c16pos + msg_size + 1);
+		// +1 for NULL terminator.
+		memcpy(&vMsgText[c16pos], msg_text.c_str(), (msg_size+1) * sizeof(char16_t));
+
+		// NOTE: Text offset must be multiplied by sizeof(char16_t),
+		// since vMsgText is char16_t, but vOffsetTbl uses bytes.
+		assert(ptr.text_offset <= 16U*1024*1024);
 
 		// Do we have a placeholder name?
 		auto plc_iter = m_mapPlaceholder.find(idx);
