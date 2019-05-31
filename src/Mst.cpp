@@ -1015,24 +1015,40 @@ u16string Mst::strText_utf16(const string &name)
  */
 string Mst::escape(const string &str)
 {
+	bool isSpaceOnly = true;
+
 	string ret;
 	ret.reserve(str.size() + 8);
 	for (auto iter = str.cbegin(); iter != str.cend(); ++iter) {
 		switch (*iter) {
 			case '\\':
 				ret += "\\\\";
+				isSpaceOnly = false;
 				break;
 			case '\n':
 				ret += "\\n";
+				isSpaceOnly = false;
 				break;
 			case '\f':
 				ret += "\\f";
+				isSpaceOnly = false;
 				break;
 			default:
 				ret += *iter;
+				if (*iter != ' ') {
+					isSpaceOnly = false;
+				}
 				break;
 		}
 	}
+
+	// If the text is *only* spaces, change the first space to
+	// "\x20" to work around a bug in TinyXML2 where the text
+	// is assumed to be completely empty.
+	if (!ret.empty() && isSpaceOnly) {
+		ret = string("\\x20") + ret.substr(1);
+	}
+
 	return ret;
 }
 
@@ -1043,24 +1059,40 @@ string Mst::escape(const string &str)
  */
 u16string Mst::escape(const u16string &str)
 {
+	bool isSpaceOnly = true;
+
 	u16string ret;
 	ret.reserve(str.size() + 8);
 	for (auto iter = str.cbegin(); iter != str.cend(); ++iter) {
 		switch (*iter) {
 			case '\\':
 				ret += u"\\\\";
+				isSpaceOnly = false;
 				break;
 			case '\n':
 				ret += u"\\n";
+				isSpaceOnly = false;
 				break;
 			case '\f':
 				ret += u"\\f";
+				isSpaceOnly = false;
 				break;
 			default:
 				ret += *iter;
+				if (*iter != u' ') {
+					isSpaceOnly = false;
+				}
 				break;
 		}
 	}
+
+	// If the text is *only* spaces, change the first space to
+	// "\x20" to work around a bug in TinyXML2 where the text
+	// is assumed to be completely empty.
+	if (!ret.empty() && isSpaceOnly) {
+		ret = u16string(u"\\x20") + ret.substr(1);
+	}
+
 	return ret;
 }
 
@@ -1073,21 +1105,21 @@ string Mst::unescape(const string &str)
 {
 	string ret;
 	ret.reserve(str.size());
-	for (auto iter = str.cbegin(); iter != str.cend(); ++iter) {
-		if (*iter != '\\') {
+	for (const char *p = str.c_str(); *p != '\0'; p++) {
+		if (*p != '\\') {
 			// Not an escape character.
-			ret += *iter;
+			ret += *p;
 			continue;
 		}
 
 		// Escape character.
-		++iter;
-		if (iter == str.cend()) {
+		p++;
+		if (*p == '\0') {
 			// Backslash at the end of the string.
 			ret += '\\';
 			break;
 		}
-		switch (*iter) {
+		switch (*p) {
 			case '\\':
 				ret += '\\';
 				break;
@@ -1097,10 +1129,27 @@ string Mst::unescape(const string &str)
 			case 'f':
 				ret += '\f';
 				break;
+			case 'x':
+				// Next two characters must be hexadecimal digits.
+				if (!isxdigit(p[1]) || !isxdigit(p[2])) {
+					// Invalid sequence.
+					// Skip over the "\\x" and continue.
+					// TODO: Return an error?
+				} else {
+					// Valid sequence. Convert to uint8_t.
+					char buf[3];
+					buf[0] = p[1];
+					buf[1] = p[2];
+					buf[2] = 0;
+					char chr = static_cast<char>(strtoul(buf, nullptr, 16));
+					ret += chr;
+					p += 2;
+				}
+				break;
 			default:
 				// Invalid escape sequence.
 				ret += '\\';
-				ret += *iter;
+				ret += *p;
 				break;
 		}
 	}
@@ -1116,21 +1165,21 @@ u16string Mst::unescape(const u16string &str)
 {
 	u16string ret;
 	ret.reserve(str.size());
-	for (auto iter = str.cbegin(); iter != str.cend(); ++iter) {
-		if (*iter != u'\\') {
+	for (const char16_t *p = str.c_str(); *p != u'\0'; p++) {
+		if (*p != u'\\') {
 			// Not an escape character.
-			ret += *iter;
+			ret += *p;
 			continue;
 		}
 
 		// Escape character.
-		++iter;
-		if (iter == str.cend()) {
+		p++;
+		if (*p == u'\0') {
 			// Backslash at the end of the string.
 			ret += u'\\';
 			break;
 		}
-		switch (*iter) {
+		switch (*p) {
 			case '\\':
 				ret += u'\\';
 				break;
@@ -1140,10 +1189,29 @@ u16string Mst::unescape(const u16string &str)
 			case 'f':
 				ret += u'\f';
 				break;
+			case 'x':
+				// Next two characters must be hexadecimal digits.
+				if (p[1] >= 0x0100 || !isxdigit(p[1]) ||
+				    p[2] >= 0x0100 || !isxdigit(p[2]))
+				{
+					// Invalid sequence.
+					// Skip over the "\\x" and continue.
+					// TODO: Return an error?
+				} else {
+					// Valid sequence. Convert to uint8_t.
+					char buf[3];
+					buf[0] = static_cast<char>(p[1]);
+					buf[1] = static_cast<char>(p[2]);
+					buf[2] = static_cast<char>(0);
+					char16_t chr = static_cast<char16_t>(strtoul(buf, nullptr, 16));
+					ret += chr;
+					p += 2;
+				}
+				break;
 			default:
 				// Invalid escape sequence.
 				ret += u'\\';
-				ret += *iter;
+				ret += *p;
 				break;
 		}
 	}
