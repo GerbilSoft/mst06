@@ -622,6 +622,7 @@ int Mst::saveMST(FILE *fp) const
 	const bool hostMatchesFileEndianness = (hostIsBigEndian == m_isBigEndian);
 
 	size_t idx = 0;
+	u16string msg_text;
 	for (auto iter = m_vStrTbl.cbegin(); iter != m_vStrTbl.cend(); ++iter, ++idx) {
 		WTXT_MsgPointer ptr;
 		ptr.name_offset = INVALID_OFFSET;
@@ -673,7 +674,6 @@ int Mst::saveMST(FILE *fp) const
 		// ptr.text_offset is in bytes.
 		const uint32_t c16pos = static_cast<uint32_t>(vMsgText.size());
 		ptr.text_offset = c16pos * sizeof(char16_t);
-		u16string msg_text;
 		if (hostMatchesFileEndianness) {
 			// Host endianness matches file endianness.
 			// No conversion is necessary.
@@ -684,6 +684,9 @@ int Mst::saveMST(FILE *fp) const
 			// Swap it.
 			if (!iter->second.empty()) {
 				msg_text = utf16_bswap(iter->second.data(), iter->second.size());
+			} else {
+				// Simply clear the message text.
+				msg_text.clear();
 			}
 		}
 
