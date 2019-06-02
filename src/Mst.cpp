@@ -658,6 +658,8 @@ int Mst::saveMST(FILE *fp) const
 		} else {
 			// Empty message name...
 			// TODO: Report a warning.
+			ptr.name_offset = static_cast<uint32_t>(vMsgNames.size());
+
 			char buf[64];
 			int len = snprintf(buf, sizeof(buf), "XXX_MSG_%zu", idx);
 			// +1 for NULL terminator.
