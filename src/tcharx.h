@@ -37,6 +37,11 @@ typedef char TCHAR;
 
 #define _tfopen(filename, mode) fopen((filename), (mode))
 
+#define _puttc putc
+#define _fputtc fputc
+#define _puttchar putchar
+#define _fputtchar fputchar
+
 #define _tprintf printf
 #define _ftprintf fprintf
 #define _sntprintf snprintf

@@ -22,6 +22,11 @@ using std::wstring;
 #include "tcharx.h"
 #include "Mst.hpp"
 
+// for TinyXML2 error codes
+// TODO: Check ENABLE_XML?
+#include <tinyxml2.h>
+using namespace tinyxml2;
+
 #ifdef _WIN32
 # define SLASH_CHAR _T('\\')
 #else /* !_WIN32 */
@@ -60,6 +65,9 @@ int _tmain(int argc, TCHAR *argv[])
 	Mst mst;
 	int ret;
 
+	// XML errors.
+	vector<string> vecErrs;
+
 	// Check if this is XML.
 	const TCHAR *out_ext = nullptr;
 	bool writeXML = false, writeMST = false;
@@ -68,8 +76,7 @@ int _tmain(int argc, TCHAR *argv[])
 		// Parse as XML and convert to MST.
 		out_ext = _T(".mst");
 		writeMST = true;
-		// TODO: Print load errors.
-		ret = mst.loadXML(f_in);
+		ret = mst.loadXML(f_in, &vecErrs);
 		fclose(f_in);
 	} else if (!memcmp(&buf[0x18], "BINA", 4)) {
 		// This is an MST file.
@@ -85,8 +92,28 @@ int _tmain(int argc, TCHAR *argv[])
 		return EXIT_FAILURE;
 	}
 
+	if (!vecErrs.empty()) {
+		_ftprintf(stderr, _T("*** TinyXML2 errors:\n"));
+		for (auto iter = vecErrs.cbegin(); iter != vecErrs.cend(); ++iter) {
+			_ftprintf(stderr, _T("- %s\n"), iter->c_str());
+		}
+		_fputtc('\n', stderr);
+	}
+
 	if (ret != 0) {
-		_ftprintf(stderr, _T("*** ERROR loading %s: %s\n"), argv[1], _tcserror(-ret));
+		_ftprintf(stderr, _T("*** ERROR loading %s: "), argv[1]);
+		if (ret <= 0) {
+			// POSIX error.
+			_ftprintf(stderr, "%s", _tcserror(-ret));
+		} else {
+			// TinyXML2 error.
+			if (ret < XML_ERROR_COUNT) {
+				fprintf(stderr, "%s", XMLDocument::ErrorIDToName(static_cast<XMLError>(ret)));
+			} else {
+				_ftprintf(stderr, _T("Unknown TinyXML2 error %d"), ret);
+			}
+		}
+		_fputtc('\n', stderr);
 		return EXIT_FAILURE;
 	}
 

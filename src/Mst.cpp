@@ -301,7 +301,7 @@ class MstXMLPrinter : public XMLPrinter
  * @param pVecErrs	[out,opt] Vector of user-readable error messages.
  * @return 0 on success; negative POSIX error code or positive TinyXML2 error code on error.
  */
-int Mst::loadXML(const TCHAR *filename, std::vector<std::string> *pVecErrs)
+int Mst::loadXML(const TCHAR *filename, vector<string> *pVecErrs)
 {
 	if (!filename || !filename[0]) {
 		return -EINVAL;
@@ -324,7 +324,7 @@ int Mst::loadXML(const TCHAR *filename, std::vector<std::string> *pVecErrs)
  * @param pVecErrs	[out,opt] Vector of user-readable error messages.
  * @return 0 on success; negative POSIX error code or positive TinyXML2 error code on error.
  */
-int Mst::loadXML(FILE *fp, std::vector<std::string> *pVecErrs)
+int Mst::loadXML(FILE *fp, vector<string> *pVecErrs)
 {
 	if (!fp) {
 		return -EINVAL;
