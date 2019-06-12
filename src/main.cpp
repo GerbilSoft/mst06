@@ -104,7 +104,7 @@ int _tmain(int argc, TCHAR *argv[])
 		_ftprintf(stderr, _T("*** ERROR loading %s: "), argv[1]);
 		if (ret <= 0) {
 			// POSIX error.
-			_ftprintf(stderr, "%s", _tcserror(-ret));
+			_ftprintf(stderr, _T("%s"), _tcserror(-ret));
 		} else {
 			// TinyXML2 error.
 			if (ret < XML_ERROR_COUNT) {
