@@ -95,7 +95,7 @@ int _tmain(int argc, TCHAR *argv[])
 	if (!vecErrs.empty()) {
 		_ftprintf(stderr, _T("*** TinyXML2 errors:\n"));
 		for (auto iter = vecErrs.cbegin(); iter != vecErrs.cend(); ++iter) {
-			_ftprintf(stderr, _T("- %s\n"), iter->c_str());
+			fprintf(stderr, "- %s\n", iter->c_str());
 		}
 		_fputtc('\n', stderr);
 	}
