@@ -36,11 +36,16 @@ using namespace tinyxml2;
 int _tmain(int argc, TCHAR *argv[])
 {
 	if (argc != 2 && argc != 3) {
-		_ftprintf(stderr, _T("Syntax: %s [filenames]\n\n"), argv[0]);
-		_ftprintf(stderr, _T("- Convert MST to XML: %s mst_file.mst [mst_file.xml]\n"), argv[0]);
-		_ftprintf(stderr, _T("- Convert XML to MST: %s mst_file.xml [mst_file.mst]\n\n"), argv[0]);
-		_ftprintf(stderr, _T("Default output filename replaces the file extension on the\n"));
-		_ftprintf(stderr, _T("input file with .xml or .mst, depending on operation.\n"));
+		_ftprintf(stderr,
+			_T("mst06 v1.0\n\n")
+			_T("Check out the Marathon Toolkit:\n")
+			_T("https://github.com/hyperbx/Marathon\n\n")
+			_T("Syntax: %s [filenames]\n\n")
+			_T("- Convert MST to XML: %s mst_file.mst [mst_file.xml]\n")
+			_T("- Convert XML to MST: %s mst_file.xml [mst_file.mst]\n\n")
+			_T("Default output filename replaces the file extension on the\n")
+			_T("input file with .xml or .mst, depending on operation.\n")
+			, argv[0], argv[0], argv[0]);
 		return EXIT_FAILURE;
 	}
 
