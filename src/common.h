@@ -2,8 +2,8 @@
  * MST Decoder/Encoder for Sonic '06                                       *
  * common.h: Common types and macros.                                      *
  *                                                                         *
- * Copyright (c) 2016-2018 by David Korth.                                 *
- * SPDX-License-Identifier: GPL-2.0-or-later                               *
+ * Copyright (c) 2016-2025 by David Korth.                                 *
+ * SPDX-License-Identifier: MIT                                            *
  ***************************************************************************/
 
 #ifndef __MST06_LIBRPBASE_COMMON_H__

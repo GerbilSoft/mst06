@@ -2,8 +2,8 @@
  * MST Decoder/Encoder for Sonic '06                                       *
  * mst_structs.h: MST/BINA data structures.                                *
  *                                                                         *
- * Copyright (c) 2019 by David Korth.                                      *
- * SPDX-License-Identifier: GPL-3.0-or-later                               *
+ * Copyright (c) 2019-2025 by David Korth.                                 *
+ * SPDX-License-Identifier: MIT                                            *
  ***************************************************************************/
 
 #ifndef __MST06_MST_STRUCTS_H__

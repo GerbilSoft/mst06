@@ -2,8 +2,8 @@
  * ROM Properties Page shell extension. (librpbase)                        *
  * TextFuncs.hpp: Text encoding functions.                                 *
  *                                                                         *
- * Copyright (c) 2009-2019 by David Korth.                                 *
- * SPDX-License-Identifier: GPL-3.0-or-later                               *
+ * Copyright (c) 2009-2025 by David Korth.                                 *
+ * SPDX-License-Identifier: MIT                                            *
  ***************************************************************************/
 
 #ifndef __MST06_TEXTFUNCS_HPP__

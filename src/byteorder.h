@@ -2,8 +2,8 @@
  * MST Decoder/Encoder for Sonic '06                                       *
  * byteorder.h: System byte order header.                                  *
  *                                                                         *
- * Copyright (c) 2011-2019 by David Korth.                                 *
- * SPDX-License-Identifier: GPL-3.0-or-later                               *
+ * Copyright (c) 2011-2025 by David Korth.                                 *
+ * SPDX-License-Identifier: MIT                                            *
  ***************************************************************************/
 
 #ifndef __MST06_BYTEORDER_H__

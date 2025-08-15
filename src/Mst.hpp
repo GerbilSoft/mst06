@@ -2,8 +2,8 @@
  * MST Decoder/Encoder for Sonic '06                                       *
  * Mst.hpp: MST container class.                                           *
  *                                                                         *
- * Copyright (c) 2019 by David Korth.                                      *
- * SPDX-License-Identifier: GPL-3.0-or-later                               *
+ * Copyright (c) 2019-2025 by David Korth.                                 *
+ * SPDX-License-Identifier: MIT                                            *
  ***************************************************************************/
 
 #ifndef __MST06_MST_HPP__

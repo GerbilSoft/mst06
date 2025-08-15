@@ -2,8 +2,8 @@
  * MST Decoder/Encoder for Sonic '06                                       *
  * byteswap.h: Byteswapping functions.                                     *
  *                                                                         *
- * Copyright (c) 2008-2019 by David Korth.                                 *
- * SPDX-License-Identifier: GPL-3.0-or-later                               *
+ * Copyright (c) 2008-2025 by David Korth.                                 *
+ * SPDX-License-Identifier: MIT                                            *
  ***************************************************************************/
 
 #ifndef __MST06_BYTESWAP_H__

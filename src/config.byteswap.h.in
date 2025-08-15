@@ -2,8 +2,8 @@
  * ROM Properties Page shell extension. (librpbase)                        *
  * config.byteswap.h.in: Byteswap intrinsics configuration. (source file)  *
  *                                                                         *
- * Copyright (c) 2016-2018 by David Korth.                                 *
- * SPDX-License-Identifier: GPL-3.0-or-later                               *
+ * Copyright (c) 2016-2025 by David Korth.                                 *
+ * SPDX-License-Identifier: MIT                                            *
  ***************************************************************************/
 
 #ifndef __ROMPROPERTIES_LIBRPBASE_CONFIG_BYTESWAP_H__
