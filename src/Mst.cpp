@@ -8,10 +8,7 @@
 
 #include "Mst.hpp"
 
-// C includes.
-#include <stdint.h>
-
-// C includes. (C++ namespace)
+// C includes (C++ namespace)
 #include <cassert>
 #include <cctype>
 #include <cerrno>
