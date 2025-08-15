@@ -7,5 +7,5 @@ Check out the Marathon Toolkit: https://github.com/hyperbx/Marathon
 This program is no longer being updated. The repository is kept here
 for reference and archival purposes.
 
-This program will allow you to convert a Sonic '06 MST string table
+This program allows you to convert a Sonic '06 MST string table
 file to XML and vice-versa.
