@@ -11,6 +11,7 @@
 #include "tcharx.h"
 
 // C includes (C++ namespace)
+#include <cstdint>
 #include <cstdio>
 
 // C++ includes
