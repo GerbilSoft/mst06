@@ -6,15 +6,14 @@
  * SPDX-License-Identifier: MIT                                            *
  ***************************************************************************/
 
-#ifndef __MST06_MST_HPP__
-#define __MST06_MST_HPP__
+#pragma once
 
 #include "tcharx.h"
 
-// C includes. (C++ namespace)
+// C includes (C++ namespace)
 #include <cstdio>
 
-// C++ includes.
+// C++ includes
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -233,5 +232,3 @@ private:
 	// - Value: String index
 	std::unordered_map<std::string, size_t> m_vStrLkup;
 };
-
-#endif /* __MST06_MST_HPP__ */

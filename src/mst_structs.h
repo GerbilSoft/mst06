@@ -6,8 +6,7 @@
  * SPDX-License-Identifier: MIT                                            *
  ***************************************************************************/
 
-#ifndef __MST06_MST_STRUCTS_H__
-#define __MST06_MST_STRUCTS_H__
+#pragma once
 
 #include <stdint.h>
 #include "common.h"
@@ -64,5 +63,3 @@ typedef struct _WTXT_MsgPointer {
 	uint32_t placeholder_offset;	// [0x008] If non-zero, offset of placeholder icon name. (Shift-JIS)
 } WTXT_MsgPointer;
 ASSERT_STRUCT(WTXT_MsgPointer, 3*sizeof(uint32_t));
-
-#endif /* __MST06_MST_STRUCTS_H__ */

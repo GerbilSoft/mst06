@@ -6,8 +6,7 @@
  * SPDX-License-Identifier: MIT                                            *
  ***************************************************************************/
 
-#ifndef __MST06_TEXTFUNCS_HPP__
-#define __MST06_TEXTFUNCS_HPP__
+#pragma once
 
 #include "byteorder.h"
 
@@ -196,5 +195,3 @@ static inline std::u16string utf16be_to_utf16(const char16_t *wcs, int len)
 	return std::u16string(wcs, len);
 #endif
 }
-
-#endif /* __MST06_TEXTFUNCS_HPP__ */

@@ -6,8 +6,7 @@
  * SPDX-License-Identifier: MIT                                            *
  ***************************************************************************/
 
-#ifndef __MST06_CONFIG_H__
-#define __MST06_CONFIG_H__
+#pragma once
 
 /* Define to 1 if you have the `strnlen' function. */
 #cmakedefine HAVE_STRNLEN 1
@@ -19,5 +18,3 @@
 
 /* Define to 1 if iconv() is defined in libiconv. */
 #cmakedefine HAVE_ICONV_LIBICONV 1
-
-#endif /* __MST06_CONFIG_H__ */

@@ -6,16 +6,15 @@
  * SPDX-License-Identifier: MIT                                            *
  ***************************************************************************/
 
-#ifndef __MST06_BYTESWAP_H__
-#define __MST06_BYTESWAP_H__
+#pragma once
 
-// C includes.
+// C includes
 #include <stdint.h>
 
-/* Byteswapping intrinsics. */
+/* Byteswapping intrinsics */
 #include "config.byteswap.h"
 
-/* Get the system byte order. */
+/* Get the system byte order */
 #include "byteorder.h"
 
 #if defined(_MSC_VER)
@@ -94,5 +93,3 @@
 	#define cpu_to_le32(x)	__swab32(x)
 	#define cpu_to_le64(x)	__swab64(x)
 #endif
-
-#endif /* __MST06_BYTESWAP_H__ */

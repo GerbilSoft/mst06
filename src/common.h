@@ -6,13 +6,12 @@
  * SPDX-License-Identifier: MIT                                            *
  ***************************************************************************/
 
-#ifndef __MST06_LIBRPBASE_COMMON_H__
-#define __MST06_LIBRPBASE_COMMON_H__
+#pragma once
 
 #ifdef __cplusplus
-# include <cstddef>
+#  include <cstddef>
 #else
-# include <stddef.h>
+#  include <stddef.h>
 #endif
 
 /**
@@ -29,9 +28,9 @@
 // PACKED struct attribute.
 // Use in conjunction with #pragma pack(1).
 #ifdef __GNUC__
-# define PACKED __attribute__((packed))
+#  define PACKED __attribute__((packed))
 #else
-# define PACKED
+#  define PACKED
 #endif
 
 /**
@@ -40,53 +39,53 @@
  */
 // TODO: Check MSVC support for static_assert() in C mode.
 #if defined(__cplusplus)
-# define ASSERT_STRUCT(st,sz) enum { st##_SIZE = (sz), }; \
+#  define ASSERT_STRUCT(st,sz) enum { st##_SIZE = (sz), }; \
 	static_assert(sizeof(st)==(sz),#st " is not " #sz " bytes.")
 #elif defined(__GNUC__) && defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-# define ASSERT_STRUCT(st,sz) enum { st##_SIZE = (sz), }; \
+#  define ASSERT_STRUCT(st,sz) enum { st##_SIZE = (sz), }; \
 	_Static_assert(sizeof(st)==(sz),#st " is not " #sz " bytes.")
 #else
-# define ASSERT_STRUCT(st, sz)
+#  define ASSERT_STRUCT(st, sz)
 #endif
 
 // Deprecated function attribute.
 #ifndef DEPRECATED
-# if defined(__GNUC__)
-#  define DEPRECATED __attribute__ ((deprecated))
-# elif defined(_MSC_VER)
-#  define DEPRECATED __declspec(deprecated)
-# else
-#  define DEPRECATED
-# endif
+#  if defined(__GNUC__)
+#    define DEPRECATED __attribute__ ((deprecated))
+#  elif defined(_MSC_VER)
+#    define DEPRECATED __declspec(deprecated)
+#  else
+#    define DEPRECATED
+#  endif
 #endif
 
 // Force inline attribute.
 #if !defined(FORCEINLINE)
-# if (!defined(_DEBUG) || defined(NDEBUG))
-#  if defined(__GNUC__)
-#   define FORCEINLINE inline __attribute__((always_inline))
-#  elif defined(_MSC_VER)
-#   define FORCEINLINE __forceinline
+#  if (!defined(_DEBUG) || defined(NDEBUG))
+#    if defined(__GNUC__)
+#      define FORCEINLINE inline __attribute__((always_inline))
+#    elif defined(_MSC_VER)
+#      define FORCEINLINE __forceinline
+#    else
+#      define FORCEINLINE inline
+#    endif
 #  else
-#   define FORCEINLINE inline
+#    ifdef _MSC_VER
+#      define FORCEINLINE __inline
+#    else
+#      define FORCEINLINE inline
+#    endif
 #  endif
-# else
-#  ifdef _MSC_VER
-#   define FORCEINLINE __inline
-#  else
-#   define FORCEINLINE inline
-#  endif
-# endif
 #endif /* !defined(FORCEINLINE) */
 
 // gcc branch prediction hints.
 // Should be used in combination with profile-guided optimization.
 #ifdef __GNUC__
-# define likely(x)	__builtin_expect(!!(x), 1)
-# define unlikely(x)	__builtin_expect(!!(x), 0)
+#  define likely(x)	__builtin_expect(!!(x), 1)
+#  define unlikely(x)	__builtin_expect(!!(x), 0)
 #else
-# define likely(x)	x
-# define unlikely(x)	x
+#  define likely(x)	x
+#  define unlikely(x)	x
 #endif
 
 // C99 restrict macro.
@@ -101,9 +100,9 @@
  */
 // FIXME: No __typeof__ in MSVC's C mode...
 #if defined(_MSC_VER) && !defined(__cplusplus)
-# define ALIGN(a, x)	(((x)+((a)-1)) & ~((uint64_t)((a)-1)))
+#  define ALIGN(a, x)	(((x)+((a)-1)) & ~((uint64_t)((a)-1)))
 #else
-# define ALIGN(a, x)	(((x)+((a)-1)) & ~((__typeof__(x))((a)-1)))
+#  define ALIGN(a, x)	(((x)+((a)-1)) & ~((__typeof__(x))((a)-1)))
 #endif
 
 /**
@@ -117,11 +116,9 @@
  * @param decl Variable declaration.
  */
 #if defined(__GNUC__)
-# define ALIGNED_VAR(a, decl)	decl __attribute__((aligned(a)))
+#  define ALIGNED_VAR(a, decl)	decl __attribute__((aligned(a)))
 #elif defined(_MSC_VER)
-# define ALIGNED_VAR(a, decl)	__declspec(align(a)) decl
+#  define ALIGNED_VAR(a, decl)	__declspec(align(a)) decl
 #else
-# error No aligned variable macro for this compiler.
+#  error No aligned variable macro for this compiler.
 #endif
-
-#endif /* __MST06_LIBRPBASE_COMMON_H__ */

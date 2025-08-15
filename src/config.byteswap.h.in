@@ -6,8 +6,7 @@
  * SPDX-License-Identifier: MIT                                            *
  ***************************************************************************/
 
-#ifndef __ROMPROPERTIES_LIBRPBASE_CONFIG_BYTESWAP_H__
-#define __ROMPROPERTIES_LIBRPBASE_CONFIG_BYTESWAP_H__
+#pragma once
 
 /* Define to 1 if you have __builtin_bswap16(). */
 #cmakedefine HAVE___BUILTIN_BSWAP16 1
@@ -17,5 +16,3 @@
 
 /* Define to 1 if you have __builtin_bswap64(). */
 #cmakedefine HAVE___BUILTIN_BSWAP64 1
-
-#endif /* __ROMPROPERTIES_LIBRPBASE_CONFIG_BYTESWAP_H__ */

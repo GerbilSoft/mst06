@@ -6,8 +6,7 @@
  * SPDX-License-Identifier: MIT                                            *
  ***************************************************************************/
 
-#ifndef __MST06_BYTEORDER_H__
-#define __MST06_BYTEORDER_H__
+#pragma once
 
 /**
  * Check the system byte order.
@@ -59,5 +58,3 @@
 #undef SYS_IS_PDP_ENDIAN
 
 #endif
-
-#endif /* __MST06_BYTEORDER_H__ */
