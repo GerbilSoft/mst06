@@ -14,11 +14,26 @@
 // Windows: Use the SDK tchar.h.
 #include <tchar.h>
 
+// NOTE: tcharx.h has _sntprintf(), but not sntprintf().
+// As of MSVC 2015, snprintf() always NULL-terminates the buffer,
+// but _snprintf(), and thus _sntprintf(), does *not* in some cases.
+// We're switching to our own sntprintf() macro to handle this.
+// Reference: https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/snprintf-snprintf-snprintf-l-snwprintf-snwprintf-l?view=msvc-170
+#ifdef _sntprintf
+#  undef _sntprintf
+#endif
+#define _snprintf __DO_NOT_USE_OLD_MSVC__SNPRINTF
+#define _sntprintf __DO_NOT_USE_OLD_MSVC__SNTPRINTF
+#define _snwprintf __DO_NOT_USE_OLD_MSVC__SNWPRINTF
+#define _swprintf __DO_NOT_USE_OLD_MSVC__SWPRINTF
+
 // std::tstring
 #ifdef _UNICODE
-# define tstring wstring
+#  define sntprintf swprintf
+#  define tstring wstring
 #else /* !_UNICODE */
-# define tstring string
+#  define sntprintf snprintf
+#  define tstring string
 #endif /* _UNICODE */
 
 #else /* !_WIN32 */
@@ -27,6 +42,7 @@
 typedef char TCHAR;
 #define _T(x) x
 #define _tmain main
+#define sntprintf snprintf
 #define tstring string
 
 // ctype.h
@@ -44,10 +60,8 @@ typedef char TCHAR;
 
 #define _tprintf printf
 #define _ftprintf fprintf
-#define _sntprintf snprintf
 #define _vtprintf vprintf
 #define _vftprintf vfprintf
-#define _vsprintf vsprintf
 
 // stdlib.h
 #define _tcscmp(s1, s2)			strcmp((s1), (s2))
